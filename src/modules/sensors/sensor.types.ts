@@ -1,0 +1,56 @@
+/**
+ * Tipos del módulo de sensores.
+ */
+
+/**
+ * Representa un sensor tal como se almacena en la tabla `sensores`.
+ * Los nombres de propiedades coinciden con las columnas (en español).
+ */
+export interface Sensor {
+  id: string;
+  dispositivo_id: string | null;
+  tipo_variable_id: string | null;
+  nombre: string;
+  codigo: string;
+  fabricante: string | null;
+  modelo: string | null;
+  unidad: string | null;
+  rango_min: string | null;
+  rango_max: string | null;
+  precision: string | null;
+  activo: boolean;
+  configuracion: Record<string, unknown> | null;
+  creado_en: Date;
+}
+
+/** Datos de entrada para crear un sensor. */
+export interface CrearSensorInput {
+  dispositivo_id?: string | null;
+  tipo_variable_id?: string | null;
+  nombre: string;
+  codigo: string;
+  fabricante?: string | null;
+  modelo?: string | null;
+  unidad?: string | null;
+  rango_min?: number | null;
+  rango_max?: number | null;
+  precision?: number | null;
+  activo?: boolean;
+  configuracion?: Record<string, unknown>;
+}
+
+/** Campos actualizables de un sensor. */
+export interface ActualizarSensorInput {
+  dispositivo_id?: string | null;
+  tipo_variable_id?: string | null;
+  nombre?: string;
+  codigo?: string;
+  fabricante?: string | null;
+  modelo?: string | null;
+  unidad?: string | null;
+  rango_min?: number | null;
+  rango_max?: number | null;
+  precision?: number | null;
+  activo?: boolean;
+  configuracion?: Record<string, unknown>;
+}

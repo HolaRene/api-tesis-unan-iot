@@ -1,0 +1,9 @@
+-- Migración inicial (estructura base).
+--
+-- IMPORTANTE: Esta API aún no cuenta con las tablas definitivas.
+-- Las tablas de las entidades (areas, devices, variable_types, sensors,
+-- measurements, thresholds, alerts, cameras, integrations, users) se
+-- agregarán en migraciones posteriores cuando se defina el schema final.
+--
+-- Esta migración es un marcador de arranque y no ejecuta cambios.
+-- Los siguientes archivos 0002_*, 0003_*, ... contendrán el schema real.

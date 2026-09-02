@@ -1,0 +1,54 @@
+import { z } from 'zod';
+
+/**
+ * Esquemas Zod del módulo de mediciones.
+ */
+
+/**
+ * Esquema para registrar (ingerir) una medición.
+ * Se acepta cualquiera de los tipos de valor, siempre que al menos uno
+ * esté presente. Node-RED u otros emisores pueden enviar el valor
+ * según el tipo del sensor.
+ */
+export const crearMeasurementSchema = z
+  .object({
+    sensor_id: z.string().uuid('El id del sensor no es válido'),
+    valor_numerico: z.number().optional(),
+    valor_texto: z.string().optional(),
+    valor_booleano: z.boolean().optional(),
+    valor_json: z.record(z.string(), z.unknown()).optional(),
+    calidad: z
+      .string()
+      .max(20, 'La calidad no puede superar 20 caracteres')
+      .optional(),
+    registrado_en: z.coerce.date().optional(),
+    metadatos: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine(
+    (datos) =>
+      datos.valor_numerico !== undefined ||
+      datos.valor_texto !== undefined ||
+      datos.valor_booleano !== undefined ||
+      datos.valor_json !== undefined,
+    {
+      message:
+        'Debe proporcionar al menos un valor (valor_numerico, valor_texto, valor_booleano o valor_json)',
+    }
+  );
+
+/** Esquema para el parámetro de ruta `:id`. */
+export const idMedicionSchema = z.object({
+  id: z.coerce.number().int().positive('El id no es válido'),
+});
+
+/** Esquema para el query de listado (filtro por sensor y límite). */
+export const listarMedicionesSchema = z.object({
+  sensor_id: z.string().uuid('El id del sensor no es válido').optional(),
+  limite: z.coerce.number().int().min(1).max(500).default(100).optional(),
+});
+
+/** Tipo inferido del esquema de creación (ingesta). */
+export type CrearMeasurementBody = z.infer<typeof crearMeasurementSchema>;
+
+/** Tipo inferido del esquema de listado. */
+export type ListarMedicionesQuery = z.infer<typeof listarMedicionesSchema>;

@@ -1,0 +1,32 @@
+# Dependencias
+node_modules/
+
+# Compilación
+dist/
+build/
+
+# Variables de entorno (nunca subir secretos)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Cobertura / caché
+coverage/
+.tsbuildinfo
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Base de datos / volúmenes
+*.sqlite
+*.db
