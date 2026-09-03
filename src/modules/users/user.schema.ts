@@ -71,7 +71,6 @@ export const actualizarMiPerfilSchema = z
       .min(8, 'La contraseña debe tener al menos 8 caracteres')
       .max(72, 'La contraseña no puede superar 72 caracteres')
       .optional(),
-    confirmarPassword: z.string().optional(),
   })
   .refine((datos) => Object.keys(datos).length > 0, {
     message: 'Debe proporcionar al menos un campo para actualizar',
@@ -83,13 +82,6 @@ export const actualizarMiPerfilSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Debe indicar la contraseña actual para cambiar la contraseña',
         path: ['passwordActual'],
-      });
-    }
-    if (datos.password !== undefined && datos.password !== datos.confirmarPassword) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Las contraseñas no coinciden',
-        path: ['confirmarPassword'],
       });
     }
   });
