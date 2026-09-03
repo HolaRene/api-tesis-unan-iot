@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { variableTypeController } from './variable-type.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,8 +13,8 @@ router.use(middlewareAuth);
 
 router.get('/', variableTypeController.listar);
 router.get('/:id', variableTypeController.obtenerPorId);
-router.post('/', variableTypeController.crear);
-router.patch('/:id', variableTypeController.actualizar);
-router.delete('/:id', variableTypeController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), variableTypeController.crear);
+router.patch('/:id', requiereRol('usuario', 'admin'), variableTypeController.actualizar);
+router.delete('/:id', requiereRol('usuario', 'admin'), variableTypeController.eliminar);
 
 export default router;

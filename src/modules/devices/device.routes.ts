@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { deviceController } from './device.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,8 +13,8 @@ router.use(middlewareAuth);
 
 router.get('/', deviceController.listar);
 router.get('/:id', deviceController.obtenerPorId);
-router.post('/', deviceController.crear);
-router.patch('/:id', deviceController.actualizar);
-router.delete('/:id', deviceController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), deviceController.crear);
+router.patch('/:id', requiereRol('usuario', 'admin'), deviceController.actualizar);
+router.delete('/:id', requiereRol('usuario', 'admin'), deviceController.eliminar);
 
 export default router;

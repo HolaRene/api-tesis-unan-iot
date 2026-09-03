@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { measurementController } from './measurement.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,7 +13,7 @@ router.use(middlewareAuth);
 
 router.get('/', measurementController.listar);
 router.get('/:id', measurementController.obtenerPorId);
-router.post('/', measurementController.crear);
-router.delete('/:id', measurementController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), measurementController.crear);
+router.delete('/:id', requiereRol('usuario', 'admin'), measurementController.eliminar);
 
 export default router;

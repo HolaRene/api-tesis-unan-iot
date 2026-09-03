@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { responderExito } from '../../utils/api-response.js';
 import {
   actualizarUsuarioSchema,
+  crearUsuarioAdminSchema,
   crearUsuarioSchema,
   idUsuarioSchema,
   loginSchema,
@@ -11,16 +12,33 @@ import { usuarioService } from './user.service.js';
 /**
  * Controlador HTTP del módulo de usuarios.
  * Solo gestiona request/response; la lógica de negocio está en el service.
+ * Las rutas de gestión de usuarios quedan restringidas a admin a nivel de
+ * rutas (ver user.routes.ts).
  */
 export const usuarioController = {
   /**
    * POST /api/v1/users/registro
+   * Registro público: SIEMPRE crea el usuario con rol `viewer`.
    */
   async registrar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const entrada = crearUsuarioSchema.parse(req.body);
       const usuario = await usuarioService.registrar(entrada);
-      responderExito(res, usuario, 201, 'Usuario registrado correctamente');
+      responderExito(res, usuario, 201, 'Usuario registrado correctamente (rol viewer)');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/v1/users
+   * Solo admin: crea un usuario y asigna el rol elegido (invitación).
+   */
+  async crearPorAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const entrada = crearUsuarioAdminSchema.parse(req.body);
+      const usuario = await usuarioService.crearPorAdmin(entrada);
+      responderExito(res, usuario, 201, 'Usuario creado correctamente');
     } catch (error) {
       next(error);
     }
@@ -41,6 +59,7 @@ export const usuarioController = {
 
   /**
    * GET /api/v1/users/perfil
+   * El propio usuario autenticado (cualquier rol) consulta su perfil.
    */
   async perfil(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -57,7 +76,7 @@ export const usuarioController = {
   },
 
   /**
-   * GET /api/v1/users
+   * GET /api/v1/users - solo admin
    */
   async listar(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -69,7 +88,7 @@ export const usuarioController = {
   },
 
   /**
-   * GET /api/v1/users/:id
+   * GET /api/v1/users/:id - solo admin
    */
   async obtenerPorId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -82,7 +101,7 @@ export const usuarioController = {
   },
 
   /**
-   * PATCH /api/v1/users/:id
+   * PATCH /api/v1/users/:id - solo admin
    */
   async actualizar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -96,7 +115,7 @@ export const usuarioController = {
   },
 
   /**
-   * DELETE /api/v1/users/:id
+   * DELETE /api/v1/users/:id - solo admin
    */
   async eliminar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

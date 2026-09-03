@@ -5,9 +5,9 @@ import { z } from 'zod';
  */
 
 /** Roles válidos dentro del sistema. */
-const rolesValidos = ['admin', 'operador', 'viewer'] as const;
+export const rolesValidos = ['viewer', 'usuario', 'admin'] as const;
 
-/** Esquema para crear/registrar un usuario. */
+/** Esquema para registrarse (self-signup). Siempre crea como viewer. */
 export const crearUsuarioSchema = z.object({
   nombre: z
     .string()
@@ -18,7 +18,22 @@ export const crearUsuarioSchema = z.object({
     .string()
     .min(8, 'La contraseña debe tener al menos 8 caracteres')
     .max(72, 'La contraseña no puede superar 72 caracteres'),
-  rol: z.enum(rolesValidos).optional(),
+});
+
+/**
+ * Esquema para que un admin cree/invite un usuario con rol asignable.
+ */
+export const crearUsuarioAdminSchema = z.object({
+  nombre: z
+    .string()
+    .min(2, 'El nombre debe tener al menos 2 caracteres')
+    .max(100, 'El nombre no puede superar 100 caracteres'),
+  email: z.string().email('El email no es válido'),
+  password: z
+    .string()
+    .min(8, 'La contraseña debe tener al menos 8 caracteres')
+    .max(72, 'La contraseña no puede superar 72 caracteres'),
+  rol: z.enum(rolesValidos).default('viewer'),
 });
 
 /** Esquema para iniciar sesión. */
@@ -33,8 +48,8 @@ export const idUsuarioSchema = z.object({
 });
 
 /**
- * Esquema para actualizar un usuario. Todos los campos son opcionales,
- * pero al menos uno debe estar presente.
+ * Esquema para actualizar un usuario (solo admin). Todos los campos son
+ * opcionales, pero al menos uno debe estar presente.
  */
 export const actualizarUsuarioSchema = z
   .object({
@@ -56,8 +71,11 @@ export const actualizarUsuarioSchema = z
     message: 'Debe proporcionar al menos un campo para actualizar',
   });
 
-/** Tipo inferido del esquema de creación. */
+/** Tipo inferido del esquema de creación pública (viewer). */
 export type CrearUsuarioBody = z.infer<typeof crearUsuarioSchema>;
+
+/** Tipo inferido del esquema de creación por admin. */
+export type CrearUsuarioAdminBody = z.infer<typeof crearUsuarioAdminSchema>;
 
 /** Tipo inferido del esquema de login. */
 export type LoginBody = z.infer<typeof loginSchema>;

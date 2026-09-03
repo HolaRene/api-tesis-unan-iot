@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { sensorController } from './sensor.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,8 +13,8 @@ router.use(middlewareAuth);
 
 router.get('/', sensorController.listar);
 router.get('/:id', sensorController.obtenerPorId);
-router.post('/', sensorController.crear);
-router.patch('/:id', sensorController.actualizar);
-router.delete('/:id', sensorController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), sensorController.crear);
+router.patch('/:id', requiereRol('usuario', 'admin'), sensorController.actualizar);
+router.delete('/:id', requiereRol('usuario', 'admin'), sensorController.eliminar);
 
 export default router;

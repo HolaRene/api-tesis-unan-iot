@@ -2,8 +2,13 @@
  * Tipos del módulo de usuarios.
  */
 
-/** Rol de un usuario dentro del sistema (columna `rol`). */
-export type RolUsuario = 'admin' | 'operador' | 'viewer';
+/**
+ * Rol de un usuario dentro del sistema (columna `rol`).
+ * - `viewer` : solo lectura.
+ * - `usuario`: puede crear, editar y eliminar recursos de monitoreo.
+ * - `admin`  : acceso total + gestión de usuarios/roles.
+ */
+export type RolUsuario = 'viewer' | 'usuario' | 'admin';
 
 /**
  * Representa un usuario tal como se almacena en la base de datos.

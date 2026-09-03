@@ -183,17 +183,28 @@ Al borrar un registro padre se eliminan automáticamente sus dependencias:
 
 La mayoría de rutas requieren un token. Se envía en el encabezado `Authorization: Bearer <token>`.
 
-| Método | Ruta | Descripción | Pública |
+| Método | Ruta | Descripción | Rol |
 |---|---|---|---|
-| `POST` | `/api/v1/users/registro` | Registra un usuario | Sí |
-| `POST` | `/api/v1/users/login` | Inicia sesión y devuelve token | Sí |
-| `GET` | `/api/v1/users/perfil` | Perfil del usuario autenticado | No |
-| `GET` | `/api/v1/users` | Lista usuarios | No |
-| `GET` | `/api/v1/users/:id` | Obtiene un usuario | No |
-| `PATCH` | `/api/v1/users/:id` | Actualiza un usuario | No |
-| `DELETE` | `/api/v1/users/:id` | Elimina un usuario | No |
+| `POST` | `/api/v1/users/registro` | Registra un usuario (siempre `viewer`) | Público |
+| `POST` | `/api/v1/users/login` | Inicia sesión y devuelve token | Público |
+| `GET` | `/api/v1/users/perfil` | Perfil del usuario autenticado | Cualquier rol |
+| `POST` | `/api/v1/users` | Crea un usuario con rol asignado (invitación) | Sólo admin |
+| `GET` | `/api/v1/users` | Lista usuarios | Sólo admin |
+| `GET` | `/api/v1/users/:id` | Obtiene un usuario | Sólo admin |
+| `PATCH` | `/api/v1/users/:id` | Actualiza un usuario / cambia rol | Sólo admin |
+| `DELETE` | `/api/v1/users/:id` | Elimina un usuario | Sólo admin |
 
-Roles: `admin`, `operador`, `viewer` (por defecto `viewer` al registrar).
+### Roles y permisos
+
+Roles: `viewer`, `usuario`, `admin`.
+
+| Acción | `viewer` | `usuario` | `admin` |
+|---|---|---|---|
+| Leer (GET de cualquier módulo) | ✅ | ✅ | ✅ |
+| Crear / Editar / Eliminar (monitoreo) | ❌ | ✅ | ✅ |
+| Gestionar usuarios (roles, eliminar) | ❌ | ❌ | ✅ |
+
+> El **registro público** (`POST /users/registro`) siempre crea el usuario con rol `viewer`, aunque se intente enviar otro rol en el body. Para asignar roles superiores un `admin` crea el usuario (POST `/users`) o lo actualiza (PATCH `/users/:id`).
 
 ## Endpoints de la API
 
@@ -207,15 +218,18 @@ Roles: `admin`, `operador`, `viewer` (por defecto `viewer` al registrar).
 
 ### Usuarios
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| `POST` | `/users/registro` | Registra un usuario |
-| `POST` | `/users/login` | Inicia sesión |
-| `GET` | `/users/perfil` | Perfil del token |
-| `GET` | `/users` | Lista usuarios |
-| `GET` | `/users/:id` | Obtiene usuario |
-| `PATCH` | `/users/:id` | Actualiza usuario |
-| `DELETE` | `/users/:id` | Elimina usuario |
+| Método | Ruta | Descripción | Rol |
+|---|---|---|---|
+| `POST` | `/users/registro` | Registra un usuario (siempre `viewer`) | Público |
+| `POST` | `/users/login` | Inicia sesión | Público |
+| `GET` | `/users/perfil` | Perfil del token | Cualquier rol |
+| `POST` | `/users` | Crea un usuario con rol asignado | Admin |
+| `GET` | `/users` | Lista usuarios | Admin |
+| `GET` | `/users/:id` | Obtiene usuario | Admin |
+| `PATCH` | `/users/:id` | Actualiza usuario / cambia rol | Admin |
+| `DELETE` | `/users/:id` | Elimina usuario | Admin |
+
+> En los módulos de monitoreo (áreas, dispositivos, etc.), el campo "Rol" de las tablas siguientes indica: **GET** cualquier rol autenticado; **POST/PATCH/DELETE** solo `usuario` o `admin`.
 
 ### Áreas
 

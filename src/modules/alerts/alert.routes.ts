@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { alertController } from './alert.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,8 +13,8 @@ router.use(middlewareAuth);
 
 router.get('/', alertController.listar);
 router.get('/:id', alertController.obtenerPorId);
-router.post('/', alertController.crear);
-router.patch('/:id', alertController.actualizar);
-router.delete('/:id', alertController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), alertController.crear);
+router.patch('/:id', requiereRol('usuario', 'admin'), alertController.actualizar);
+router.delete('/:id', requiereRol('usuario', 'admin'), alertController.eliminar);
 
 export default router;

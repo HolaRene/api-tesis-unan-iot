@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { thresholdController } from './threshold.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,8 +13,8 @@ router.use(middlewareAuth);
 
 router.get('/', thresholdController.listar);
 router.get('/:id', thresholdController.obtenerPorId);
-router.post('/', thresholdController.crear);
-router.patch('/:id', thresholdController.actualizar);
-router.delete('/:id', thresholdController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), thresholdController.crear);
+router.patch('/:id', requiereRol('usuario', 'admin'), thresholdController.actualizar);
+router.delete('/:id', requiereRol('usuario', 'admin'), thresholdController.eliminar);
 
 export default router;

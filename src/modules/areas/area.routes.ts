@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { areaController } from './area.controller.js';
+import { requiereRol } from '../../middlewares/permisos.middleware.js';
 import { middlewareAuth } from '../../middlewares/auth.middleware.js';
 
 /**
@@ -12,8 +13,8 @@ router.use(middlewareAuth);
 
 router.get('/', areaController.listar);
 router.get('/:id', areaController.obtenerPorId);
-router.post('/', areaController.crear);
-router.patch('/:id', areaController.actualizar);
-router.delete('/:id', areaController.eliminar);
+router.post('/', requiereRol('usuario', 'admin'), areaController.crear);
+router.patch('/:id', requiereRol('usuario', 'admin'), areaController.actualizar);
+router.delete('/:id', requiereRol('usuario', 'admin'), areaController.eliminar);
 
 export default router;

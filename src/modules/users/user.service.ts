@@ -6,14 +6,13 @@ import type {
   ActualizarUsuarioInput,
   CrearUsuarioInput,
   LoginInput,
+  RolUsuario,
   Usuario,
   UsuarioAutenticado,
 } from './user.types.js';
 import { usuarioRepository } from './user.repository.js';
 
-/**
- * Elimina el campo hash_contra del objeto para no exponerlo en la API.
- */
+/** Elimina el campo hash_contra del objeto para no exponerlo en la API. */
 function usuarioSinHash(usuario: Usuario): Usuario {
   const { hash_contra: _hash, ...usuarioSeguro } = usuario;
   return usuarioSeguro as Usuario;
@@ -25,9 +24,31 @@ function usuarioSinHash(usuario: Usuario): Usuario {
  */
 export const usuarioService = {
   /**
-   * Registra un nuevo usuario. Lanza un conflicto si el email ya existe.
+   * Registra un nuevo usuario por auto-registro.
+   * IMPORTANTE: SIEMPRE queda en rol `viewer` (solo lectura).
+   * Un usuario nuevo no puede autoasignarse permisos de escritura;
+   * un admin debe elevarlo de rol más adelante.
    */
   async registrar(input: CrearUsuarioInput): Promise<Usuario> {
+    const existente = await usuarioRepository.buscarPorEmail(input.email);
+    if (existente) {
+      throw ApiError.conflict('Ya existe un usuario con ese email');
+    }
+
+    const hashContrasena = await bcrypt.hash(input.password, 10);
+    // Se fuerza el rol 'viewer' en esa invocación del repositorio.
+    const usuario = await usuarioRepository.crear(
+      { ...input, rol: 'viewer' },
+      hashContrasena
+    );
+    return usuarioSinHash(usuario);
+  },
+
+  /**
+   * Crea un usuario por parte de un admin (invitación/signup interno),
+   * permitiendo asignar el rol deseado.
+   */
+  async crearPorAdmin(input: CrearUsuarioInput & { rol: RolUsuario }): Promise<Usuario> {
     const existente = await usuarioRepository.buscarPorEmail(input.email);
     if (existente) {
       throw ApiError.conflict('Ya existe un usuario con ese email');
@@ -38,9 +59,7 @@ export const usuarioService = {
     return usuarioSinHash(usuario);
   },
 
-  /**
-   * Lista todos los usuarios.
-   */
+  /** Lista todos los usuarios. */
   async listar(): Promise<Usuario[]> {
     const usuarios = await usuarioRepository.listar();
     return usuarios.map(usuarioSinHash);
@@ -78,9 +97,7 @@ export const usuarioService = {
     return { token, usuario: autenticado };
   },
 
-  /**
-   * Obtiene los datos de un usuario por id.
-   */
+  /** Obtiene los datos de un usuario por id. */
   async obtenerPorId(id: string): Promise<Usuario> {
     const usuario = await usuarioRepository.buscarPorId(id);
     if (!usuario) {
@@ -90,7 +107,7 @@ export const usuarioService = {
   },
 
   /**
-   * Actualiza un usuario por id.
+   * Actualiza un usuario por id (solo admin en la capa HTTP).
    * Si se cambia el email, valida que no exista otro usuario con él.
    */
   async actualizar(id: string, input: ActualizarUsuarioInput): Promise<Usuario> {
@@ -102,7 +119,6 @@ export const usuarioService = {
       }
     }
 
-    // Se construye el objeto de datos para el repositorio, excluyendo password.
     const datosDb: {
       nombre?: string;
       email?: string;
@@ -128,9 +144,7 @@ export const usuarioService = {
     return usuarioSinHash(actualizado);
   },
 
-  /**
-   * Elimina un usuario por id.
-   */
+  /** Elimina un usuario por id. */
   async eliminar(id: string): Promise<void> {
     const eliminado = await usuarioRepository.eliminar(id);
     if (!eliminado) {
