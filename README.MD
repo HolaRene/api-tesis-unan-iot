@@ -185,7 +185,7 @@ La mayoría de rutas requieren un token. Se envía en el encabezado `Authorizati
 
 | Método | Ruta | Descripción | Rol |
 |---|---|---|---|
-| `POST` | `/api/v1/users/registro` | Registra un usuario (siempre `viewer`) | Público |
+| `POST` | `/api/v1/users/registro` | Registra un usuario (rol por defecto `usuario`) | Público |
 | `POST` | `/api/v1/users/login` | Inicia sesión y devuelve token | Público |
 | `GET` | `/api/v1/users/perfil` | Perfil del usuario autenticado | Cualquier rol |
 | `PATCH` | `/api/v1/users/perfil` | Edita el perfil propio (nombre y/o contraseña; email fijo) | Cualquier rol (sólo su propia cuenta) |
@@ -205,7 +205,7 @@ Roles: `viewer`, `usuario`, `admin`.
 | Crear / Editar / Eliminar (monitoreo) | ❌ | ✅ | ✅ |
 | Gestionar usuarios (roles, eliminar) | ❌ | ❌ | ✅ |
 
-> El **registro público** (`POST /users/registro`) siempre crea el usuario con rol `viewer`, aunque se intente enviar otro rol en el body. Para asignar roles superiores un `admin` crea el usuario (POST `/users`) o lo actualiza (PATCH `/users/:id`).
+> El **registro público** (`POST /users/registro`) siempre crea el usuario con rol `usuario` por defecto (el rol enviado en el body se ignora). Un `admin` puede asignar otros roles al crear (POST `/users`) o actualizarlo (PATCH `/users/:id`).
 
 > `PATCH /users/perfil` permite que cualquier usuario autenticado actualice **sólo su propia cuenta**: `nombre` y, opcionalmente, la contraseña. El **email queda fijo** tras el registro (sólo un admin puede cambiarlo vía `PATCH /users/:id`). Para cambiar la contraseña se exige el campo `passwordActual` y se valida la contraseña actual.
 
@@ -223,7 +223,7 @@ Roles: `viewer`, `usuario`, `admin`.
 
 | Método | Ruta | Descripción | Rol |
 |---|---|---|---|
-| `POST` | `/users/registro` | Registra un usuario (siempre `viewer`) | Público |
+| `POST` | `/users/registro` | Registra un usuario (rol por defecto `usuario`) | Público |
 | `POST` | `/users/login` | Inicia sesión | Público |
 | `GET` | `/users/perfil` | Perfil del token | Cualquier rol |
 | `PATCH` | `/users/perfil` | Edita perfil propio (nombre y/o contraseña; email fijo) | Cualquier rol (sólo su propia cuenta) |

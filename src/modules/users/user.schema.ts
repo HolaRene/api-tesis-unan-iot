@@ -7,7 +7,7 @@ import { z } from 'zod';
 /** Roles válidos dentro del sistema. */
 export const rolesValidos = ['viewer', 'usuario', 'admin'] as const;
 
-/** Esquema para registrarse (self-signup). Siempre crea como viewer. */
+/** Esquema para registrarse (self-signup). Crea por defecto rol 'usuario'. */
 export const crearUsuarioSchema = z.object({
   nombre: z
     .string()
@@ -33,7 +33,7 @@ export const crearUsuarioAdminSchema = z.object({
     .string()
     .min(8, 'La contraseña debe tener al menos 8 caracteres')
     .max(72, 'La contraseña no puede superar 72 caracteres'),
-  rol: z.enum(rolesValidos).default('viewer'),
+  rol: z.enum(rolesValidos).default('usuario'),
 });
 
 /** Esquema para iniciar sesión. */
@@ -111,7 +111,7 @@ export const actualizarUsuarioSchema = z
     message: 'Debe proporcionar al menos un campo para actualizar',
   });
 
-/** Tipo inferido del esquema de creación pública (viewer). */
+/** Tipo inferido del esquema de creación pública. */
 export type CrearUsuarioBody = z.infer<typeof crearUsuarioSchema>;
 
 /** Tipo inferido del esquema de creación por admin. */

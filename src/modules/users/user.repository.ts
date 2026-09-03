@@ -33,7 +33,7 @@ export const usuarioRepository = {
       `INSERT INTO usuarios (nombre, email, hash_contra, rol)
        VALUES ($1, $2, $3, $4)
        RETURNING ${CAMPOS_USUARIO}`,
-      [data.nombre, data.email, hashContrasena, data.rol ?? 'viewer']
+      [data.nombre, data.email, hashContrasena, data.rol ?? 'usuario']
     );
     return resultado.rows[0];
   },

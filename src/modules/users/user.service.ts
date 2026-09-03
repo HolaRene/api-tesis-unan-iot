@@ -26,9 +26,8 @@ function usuarioSinHash(usuario: Usuario): Usuario {
 export const usuarioService = {
   /**
    * Registra un nuevo usuario por auto-registro.
-   * IMPORTANTE: SIEMPRE queda en rol `viewer` (solo lectura).
-   * Un usuario nuevo no puede autoasignarse permisos de escritura;
-   * un admin debe elevarlo de rol más adelante.
+   * Por defecto queda con rol `usuario` (puede crear/editar/eliminar
+   * recursos de monitoreo). El rol no se toma del body enviado.
    */
   async registrar(input: CrearUsuarioInput): Promise<Usuario> {
     const existente = await usuarioRepository.buscarPorEmail(input.email);
@@ -37,9 +36,9 @@ export const usuarioService = {
     }
 
     const hashContrasena = await bcrypt.hash(input.password, 10);
-    // Se fuerza el rol 'viewer' en esa invocación del repositorio.
+    // Se fuerza el rol 'usuario'.
     const usuario = await usuarioRepository.crear(
-      { ...input, rol: 'viewer' },
+      { ...input, rol: 'usuario' },
       hashContrasena
     );
     return usuarioSinHash(usuario);
