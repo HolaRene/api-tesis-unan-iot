@@ -188,6 +188,7 @@ La mayoría de rutas requieren un token. Se envía en el encabezado `Authorizati
 | `POST` | `/api/v1/users/registro` | Registra un usuario (siempre `viewer`) | Público |
 | `POST` | `/api/v1/users/login` | Inicia sesión y devuelve token | Público |
 | `GET` | `/api/v1/users/perfil` | Perfil del usuario autenticado | Cualquier rol |
+| `PATCH` | `/api/v1/users/perfil` | Edita el perfil propio (nombre y/o contraseña; email fijo) | Cualquier rol (sólo su propia cuenta) |
 | `POST` | `/api/v1/users` | Crea un usuario con rol asignado (invitación) | Sólo admin |
 | `GET` | `/api/v1/users` | Lista usuarios | Sólo admin |
 | `GET` | `/api/v1/users/:id` | Obtiene un usuario | Sólo admin |
@@ -206,6 +207,8 @@ Roles: `viewer`, `usuario`, `admin`.
 
 > El **registro público** (`POST /users/registro`) siempre crea el usuario con rol `viewer`, aunque se intente enviar otro rol en el body. Para asignar roles superiores un `admin` crea el usuario (POST `/users`) o lo actualiza (PATCH `/users/:id`).
 
+> `PATCH /users/perfil` permite que cualquier usuario autenticado actualice **sólo su propia cuenta**: `nombre` y, opcionalmente, la contraseña. El **email queda fijo** tras el registro (sólo un admin puede cambiarlo vía `PATCH /users/:id`). Para cambiar la contraseña se exige el campo `passwordActual` y se valida la contraseña actual.
+
 ## Endpoints de la API
 
 > Todas las rutas van bajo el prefijo `/api/v1`. Las rutas de monitoreo requieren autenticación.
@@ -223,6 +226,7 @@ Roles: `viewer`, `usuario`, `admin`.
 | `POST` | `/users/registro` | Registra un usuario (siempre `viewer`) | Público |
 | `POST` | `/users/login` | Inicia sesión | Público |
 | `GET` | `/users/perfil` | Perfil del token | Cualquier rol |
+| `PATCH` | `/users/perfil` | Edita perfil propio (nombre y/o contraseña; email fijo) | Cualquier rol (sólo su propia cuenta) |
 | `POST` | `/users` | Crea un usuario con rol asignado | Admin |
 | `GET` | `/users` | Lista usuarios | Admin |
 | `GET` | `/users/:id` | Obtiene usuario | Admin |

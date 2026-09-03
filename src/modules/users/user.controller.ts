@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { responderExito } from '../../utils/api-response.js';
 import {
+  actualizarMiPerfilSchema,
   actualizarUsuarioSchema,
   crearUsuarioAdminSchema,
   crearUsuarioSchema,
@@ -70,6 +71,26 @@ export const usuarioController = {
       }
       const usuario = await usuarioService.obtenerPorId(idUsuario);
       responderExito(res, usuario, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * PATCH /api/v1/users/perfil
+   * Cualquier usuario autenticado actualiza su propio perfil (nombre, email
+   * y/o contraseña). El id se toma de la sesión, no de la URL.
+   */
+  async actualizarPerfil(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idUsuario = req.usuario?.id;
+      if (idUsuario === undefined) {
+        res.status(401).json({ exito: false, mensaje: 'No autenticado' });
+        return;
+      }
+      const entrada = actualizarMiPerfilSchema.parse(req.body);
+      const usuario = await usuarioService.actualizarMiPerfil(idUsuario, entrada);
+      responderExito(res, usuario, 200, 'Perfil actualizado correctamente');
     } catch (error) {
       next(error);
     }

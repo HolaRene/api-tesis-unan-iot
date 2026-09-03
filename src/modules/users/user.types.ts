@@ -46,11 +46,25 @@ export interface LoginInput {
   password: string;
 }
 
-/** Campos actualizables de un usuario. */
+/** Campos actualizables de un usuario (gestión del admin). */
 export interface ActualizarUsuarioInput {
   nombre?: string;
   email?: string;
   password?: string;
   rol?: RolUsuario;
   activo?: boolean;
+}
+
+/**
+ * Entrada para que un usuario actualice su PROPIO perfil.
+ * Sólo `nombre` y, opcionalmente, `password`. El email queda fijo tras el
+ * registro (sólo el admin puede cambiarlo vía PATCH /users/:id).
+ * No incluye `rol` ni `activo`.
+ */
+export interface ActualizarMiPerfilInput {
+  nombre?: string;
+  /** Contraseña actual; se exige al cambiar la contraseña. */
+  passwordActual?: string;
+  /** Nueva contraseña si se desea cambiarla. */
+  password?: string;
 }

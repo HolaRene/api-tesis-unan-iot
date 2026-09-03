@@ -48,6 +48,54 @@ export const idUsuarioSchema = z.object({
 });
 
 /**
+ * Esquema para que un usuario actualice SU PROPIO perfil (nombre y, de forma
+ * opcional, contraseña). Está pensado para el endpoint PATCH /users/perfil,
+ * accesible a cualquier usuario autenticado. NO permite cambiar el `email`
+ * (ese campo queda fijo salvo que un `admin` lo edite) ni `rol` / `activo`.
+ *
+ * Para el cambio de contraseña se exige la contraseña actual (`passwordActual`).
+ */
+export const actualizarMiPerfilSchema = z
+  .object({
+    nombre: z
+      .string()
+      .min(2, 'El nombre debe tener al menos 2 caracteres')
+      .max(100, 'El nombre no puede superar 100 caracteres')
+      .optional(),
+    passwordActual: z
+      .string()
+      .min(1, 'La contraseña actual es obligatoria')
+      .optional(),
+    password: z
+      .string()
+      .min(8, 'La contraseña debe tener al menos 8 caracteres')
+      .max(72, 'La contraseña no puede superar 72 caracteres')
+      .optional(),
+    confirmarPassword: z.string().optional(),
+  })
+  .refine((datos) => Object.keys(datos).length > 0, {
+    message: 'Debe proporcionar al menos un campo para actualizar',
+  })
+  .superRefine((datos, ctx) => {
+    const hayCambioCredenciales = datos.password !== undefined;
+    if (hayCambioCredenciales && !datos.passwordActual) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Debe indicar la contraseña actual para cambiar la contraseña',
+        path: ['passwordActual'],
+      });
+    }
+    if (datos.password !== undefined && datos.password !== datos.confirmarPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Las contraseñas no coinciden',
+        path: ['confirmarPassword'],
+      });
+    }
+  });
+
+
+/**
  * Esquema para actualizar un usuario (solo admin). Todos los campos son
  * opcionales, pero al menos uno debe estar presente.
  */
@@ -82,3 +130,6 @@ export type LoginBody = z.infer<typeof loginSchema>;
 
 /** Tipo inferido del esquema de actualización. */
 export type ActualizarUsuarioBody = z.infer<typeof actualizarUsuarioSchema>;
+
+/** Tipo inferido del esquema de actualización del propio perfil. */
+export type ActualizarMiPerfilBody = z.infer<typeof actualizarMiPerfilSchema>;

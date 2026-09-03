@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import { ApiError } from '../../utils/api-error.js';
 import type {
+  ActualizarMiPerfilInput,
   ActualizarUsuarioInput,
   CrearUsuarioInput,
   LoginInput,
@@ -10,7 +11,7 @@ import type {
   Usuario,
   UsuarioAutenticado,
 } from './user.types.js';
-import { usuarioRepository } from './user.repository.js';
+import { usuarioRepository, type ActualizarUsuarioDb } from './user.repository.js';
 
 /** Elimina el campo hash_contra del objeto para no exponerlo en la API. */
 function usuarioSinHash(usuario: Usuario): Usuario {
@@ -133,6 +134,48 @@ export const usuarioService = {
     };
 
     // Si se proporciona una contraseña nueva, se calcula su hash.
+    if (input.password !== undefined) {
+      datosDb.hashContra = await bcrypt.hash(input.password, 10);
+    }
+
+    const actualizado = await usuarioRepository.actualizar(id, datosDb);
+    if (!actualizado) {
+      throw ApiError.notFound('Usuario no encontrado');
+    }
+    return usuarioSinHash(actualizado);
+  },
+
+  /**
+   * Actualiza el PERFIL PROPIO del usuario autenticado.
+   *
+   * Permite editar `nombre`, `email` y/o la contraseña. Para cambios de
+   * credenciales (email o contraseña) se exige y valida la contraseña actual.
+   * No permite cambiar `rol` ni `activo` (reservados al admin).
+   */
+  async actualizarMiPerfil(id: string, input: ActualizarMiPerfilInput): Promise<Usuario> {
+    const usuario = await usuarioRepository.buscarPorId(id);
+    if (!usuario) {
+      throw ApiError.notFound('Usuario no encontrado');
+    }
+
+    // Para el cambio de contraseña se exige la contraseña actual.
+    if (input.password !== undefined) {
+      if (!input.passwordActual) {
+        throw ApiError.unauthorized('Debe indicar su contraseña actual');
+      }
+      const validaActual = await bcrypt.compare(
+        input.passwordActual,
+        usuario.hash_contra
+      );
+      if (!validaActual) {
+        throw ApiError.unauthorized('La contraseña actual no es correcta');
+      }
+    }
+
+    const datosDb: ActualizarUsuarioDb = {};
+    if (input.nombre !== undefined) {
+      datosDb.nombre = input.nombre;
+    }
     if (input.password !== undefined) {
       datosDb.hashContra = await bcrypt.hash(input.password, 10);
     }

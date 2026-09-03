@@ -18,6 +18,7 @@ router.post('/login', usuarioController.login);
 
 // Perfil propio (cualquier usuario autenticado)
 router.get('/perfil', middlewareAuth, usuarioController.perfil);
+router.patch('/perfil', middlewareAuth, usuarioController.actualizarPerfil);
 
 // Gestión de usuarios: solo admin
 router.post('/', middlewareAuth, soloAdmin, usuarioController.crearPorAdmin);
