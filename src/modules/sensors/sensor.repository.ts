@@ -2,16 +2,35 @@ import { query } from '../../database/pool.js';
 import type {
   ActualizarSensorInput,
   CrearSensorInput,
+  SensorConNombres,
   Sensor,
 } from './sensor.types.js';
 
 /**
- * Columnas devueltas en las consultas que mapean a un Sensor.
- * Se usa "precision" entre comillas por compatibilidad con palabras clave.
+ * Columnas base del sensor + campos relacionados con nombres (JOIN).
+ * Se usa "precision" entre comillas por compatibilidad.
  */
-const CAMPOS_SENSOR = `
-  id, dispositivo_id, tipo_variable_id, nombre, codigo, fabricante, modelo,
-  unidad, rango_min, rango_max, "precision", activo, configuracion, creado_en`;
+const SELECT_SENSOR_DETALLADO = `
+  s.id, s.dispositivo_id, s.tipo_variable_id, s.nombre, s.codigo,
+  s.fabricante, s.modelo, s.unidad, s.rango_min, s.rango_max,
+  s."precision", s.activo, s.configuracion, s.creado_en,
+  d.area_id,
+  a.nombre AS area_nombre,
+  d.nombre AS dispositivo_nombre,
+  tv.codigo AS tipo_codigo,
+  tv.nombre AS tipo_nombre,
+  tv.unidad_default AS tipo_unidad
+`;
+
+/**
+ * FROM + JOINS usados en las consultas de lectura con nombres.
+ */
+const FROM_SENSOR_CON_JOIN = `
+  FROM sensores s
+  LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
+  LEFT JOIN areas a         ON a.id = d.area_id
+  LEFT JOIN tipos_variable tv ON tv.id = s.tipo_variable_id
+`;
 
 /**
  * Repositorio de sensores. Contiene únicamente consultas SQL.
@@ -19,48 +38,51 @@ const CAMPOS_SENSOR = `
  */
 export const sensorRepository = {
   /**
-   * Lista todos los sensores.
+   * Lista todos los sensores con detalles legibles.
    */
-  async listar(): Promise<Sensor[]> {
-    const resultado = await query<Sensor>(
-      `SELECT ${CAMPOS_SENSOR} FROM sensores ORDER BY creado_en DESC`
+  async listar(): Promise<SensorConNombres[]> {
+    const resultado = await query<SensorConNombres>(
+      `SELECT ${SELECT_SENSOR_DETALLADO} ${FROM_SENSOR_CON_JOIN}
+       ORDER BY s.creado_en DESC`
     );
     return resultado.rows;
   },
 
   /**
-   * Busca un sensor por id.
+   * Busca un sensor por id, con detalles legibles.
    */
-  async buscarPorId(id: string): Promise<Sensor | null> {
-    const resultado = await query<Sensor>(
-      `SELECT ${CAMPOS_SENSOR} FROM sensores WHERE id = $1 LIMIT 1`,
+  async buscarPorId(id: string): Promise<SensorConNombres | null> {
+    const resultado = await query<SensorConNombres>(
+      `SELECT ${SELECT_SENSOR_DETALLADO} ${FROM_SENSOR_CON_JOIN}
+       WHERE s.id = $1 LIMIT 1`,
       [id]
     );
     return resultado.rows[0] ?? null;
   },
 
   /**
-   * Busca un sensor por código (columna única).
+   * Busca un sensor por código (columna única), con detalles legibles.
    */
-  async buscarPorCodigo(codigo: string): Promise<Sensor | null> {
-    const resultado = await query<Sensor>(
-      `SELECT ${CAMPOS_SENSOR} FROM sensores WHERE codigo = $1 LIMIT 1`,
+  async buscarPorCodigo(codigo: string): Promise<SensorConNombres | null> {
+    const resultado = await query<SensorConNombres>(
+      `SELECT ${SELECT_SENSOR_DETALLADO} ${FROM_SENSOR_CON_JOIN}
+       WHERE s.codigo = $1 LIMIT 1`,
       [codigo]
     );
     return resultado.rows[0] ?? null;
   },
 
   /**
-   * Crea un sensor y devuelve el registro creado.
+   * Crea un sensor y lo devuelve con detalles legibles.
    */
-  async crear(datos: CrearSensorInput): Promise<Sensor> {
-    const resultado = await query<Sensor>(
+  async crear(datos: CrearSensorInput): Promise<SensorConNombres> {
+    const insertado = await query<Sensor>(
       `INSERT INTO sensores
          (dispositivo_id, tipo_variable_id, nombre, codigo, fabricante, modelo,
           unidad, rango_min, rango_max, "precision", activo, configuracion)
        VALUES
          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, TRUE), $12)
-       RETURNING ${CAMPOS_SENSOR}`,
+       RETURNING id`,
       [
         datos.dispositivo_id ?? null,
         datos.tipo_variable_id ?? null,
@@ -76,13 +98,14 @@ export const sensorRepository = {
         datos.configuracion ? JSON.stringify(datos.configuracion) : JSON.stringify({}),
       ]
     );
-    return resultado.rows[0];
+    const creado = await this.buscarPorId(insertado.rows[0].id);
+    return creado as SensorConNombres;
   },
 
   /**
-   * Actualiza un sensor por id. Construye los SET según los campos.
+   * Actualiza un sensor por id y lo devuelve con detalles legibles.
    */
-  async actualizar(id: string, datos: ActualizarSensorInput): Promise<Sensor | null> {
+  async actualizar(id: string, datos: ActualizarSensorInput): Promise<SensorConNombres | null> {
     const sets: string[] = [];
     const valores: unknown[] = [];
     let indice = 1;
@@ -112,13 +135,17 @@ export const sensorRepository = {
     }
 
     valores.push(id);
-    const resultado = await query<Sensor>(
+    const actualizado = await query<{ id: string }>(
       `UPDATE sensores SET ${sets.join(', ')}
        WHERE id = $${indice}
-       RETURNING ${CAMPOS_SENSOR}`,
+       RETURNING id`,
       valores
     );
-    return resultado.rows[0] ?? null;
+    if (!actualizado.rows[0]) {
+      return null;
+    }
+    const detalle = await this.buscarPorId(actualizado.rows[0].id);
+    return detalle;
   },
 
   /**

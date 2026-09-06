@@ -3,7 +3,7 @@ import { ApiError } from '../../utils/api-error.js';
 import type {
   ActualizarSensorInput,
   CrearSensorInput,
-  Sensor,
+  SensorConNombres,
 } from './sensor.types.js';
 import { sensorRepository } from './sensor.repository.js';
 
@@ -14,14 +14,14 @@ export const sensorService = {
   /**
    * Lista todos los sensores.
    */
-  async listar(): Promise<Sensor[]> {
+  async listar(): Promise<SensorConNombres[]> {
     return sensorRepository.listar();
   },
 
   /**
    * Obtiene un sensor por id.
    */
-  async obtenerPorId(id: string): Promise<Sensor> {
+  async obtenerPorId(id: string): Promise<SensorConNombres> {
     const sensor = await sensorRepository.buscarPorId(id);
     if (!sensor) {
       throw ApiError.notFound('Sensor no encontrado');
@@ -32,7 +32,7 @@ export const sensorService = {
   /**
    * Crea un sensor. Valida referencias y unicidad del código.
    */
-  async crear(entrada: CrearSensorInput): Promise<Sensor> {
+  async crear(entrada: CrearSensorInput): Promise<SensorConNombres> {
     await this.validarExistencias(entrada.dispositivo_id, entrada.tipo_variable_id);
 
     const existente = await sensorRepository.buscarPorCodigo(entrada.codigo);
@@ -45,7 +45,7 @@ export const sensorService = {
   /**
    * Actualiza un sensor por id.
    */
-  async actualizar(id: string, entrada: ActualizarSensorInput): Promise<Sensor> {
+  async actualizar(id: string, entrada: ActualizarSensorInput): Promise<SensorConNombres> {
     if (entrada.codigo !== undefined) {
       const existente = await sensorRepository.buscarPorCodigo(entrada.codigo);
       if (existente && existente.id !== id) {

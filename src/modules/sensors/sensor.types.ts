@@ -23,6 +23,20 @@ export interface Sensor {
   creado_en: Date;
 }
 
+/**
+ * Sensor con datos relacionados "legibles" (JOIN) para mostrarse en un
+ * frontend: en vez de solo UUIDs, devuelve nombres de área, dispositivo
+ * y tipo de variable.
+ */
+export interface SensorConNombres extends Sensor {
+  area_id: string | null;
+  area_nombre: string | null;
+  dispositivo_nombre: string | null;
+  tipo_codigo: string | null;
+  tipo_nombre: string | null;
+  tipo_unidad: string | null;
+}
+
 /** Datos de entrada para crear un sensor. */
 export interface CrearSensorInput {
   dispositivo_id?: string | null;

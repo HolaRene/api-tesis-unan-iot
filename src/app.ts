@@ -20,6 +20,9 @@ import thresholdRoutes from './modules/thresholds/threshold.routes.js';
 import alertRoutes from './modules/alerts/alert.routes.js';
 import cameraRoutes from './modules/cameras/camera.routes.js';
 import integrationRoutes from './modules/integrations/integration.routes.js';
+import claveApiRoutes from './modules/claves-api/clave-api.routes.js';
+import actuadorRoutes from './modules/actuadores/actuador.routes.js';
+import iotRoutes from './modules/iot/iot.routes.js';
 
 /**
  * Crea y configura la aplicación Express con los middlewares globales
@@ -69,6 +72,11 @@ export function crearApp(): Express {
   app.use(`${VERSION}/alerts`, alertRoutes);
   app.use(`${VERSION}/cameras`, cameraRoutes);
   app.use(`${VERSION}/integrations`, integrationRoutes);
+  app.use(`${VERSION}/claves-api`, claveApiRoutes);
+  app.use(`${VERSION}/actuadores`, actuadorRoutes);
+
+  // Rutas de integración IoT (API Key)
+  app.use(`${VERSION}/iot`, iotRoutes);
 
   // 404 para rutas no encontradas
   app.use(middlewareNoEncontrado);
