@@ -23,6 +23,7 @@ import integrationRoutes from './modules/integrations/integration.routes.js';
 import claveApiRoutes from './modules/claves-api/clave-api.routes.js';
 import actuadorRoutes from './modules/actuadores/actuador.routes.js';
 import iotRoutes from './modules/iot/iot.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 
 /**
  * Crea y configura la aplicación Express con los middlewares globales
@@ -77,6 +78,9 @@ export function crearApp(): Express {
 
   // Rutas de integración IoT (API Key)
   app.use(`${VERSION}/iot`, iotRoutes);
+
+  // Resumen del dashboard (JWT)
+  app.use(`${VERSION}/dashboard`, dashboardRoutes);
 
   // 404 para rutas no encontradas
   app.use(middlewareNoEncontrado);
