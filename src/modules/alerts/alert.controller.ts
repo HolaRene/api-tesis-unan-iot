@@ -65,6 +65,20 @@ export const alertController = {
   },
 
   /**
+   * PATCH /api/v1/alerts/:id/reconocer
+   */
+  async reconocer(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = idAlertSchema.parse(req.params);
+      const usuarioActual = (req as { usuario?: { id: string } }).usuario;
+      const registro = await alertService.reconocer(id, usuarioActual?.id);
+      responderExito(res, registro, 200, 'Alerta reconocida');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * DELETE /api/v1/alerts/:id
    */
   async eliminar(req: Request, res: Response, next: NextFunction): Promise<void> {

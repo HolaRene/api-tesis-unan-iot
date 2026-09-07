@@ -6,6 +6,8 @@ import type {
   CrearAlertInput,
 } from './alert.types.js';
 import { alertRepository } from './alert.repository.js';
+import { reglaRepository } from '../reglas-alerta/regla-alerta.repository.js';
+import type { Measurement } from '../measurements/measurement.types.js';
 
 /**
  * Lógica de negocio del módulo de alertas.
@@ -82,4 +84,90 @@ export const alertService = {
       }
     }
   },
+
+  /**
+   * Evalúa una medición contra las reglas activas de su canal (modelo multivariable).
+   */
+  async evaluarMedicion(medicion: Measurement): Promise<void> {
+    if (!medicion.canal_id) return;
+    const reglas = await reglaRepository.listar({ canal_id: medicion.canal_id, activa: true });
+    for (const regla of reglas) {
+      const cumple = evaluarRegla(regla, medicion);
+      if (cumple) {
+        const activa = await alertRepository.buscarActivaPorRegla(regla.id);
+        if (!activa) {
+          const valor = valorDisparador(regla, medicion);
+          await alertRepository.crearDesdeRegla({
+            regla_id: regla.id,
+            canal_id: medicion.canal_id,
+            medicion_id: medicion.id,
+            severidad: regla.severidad,
+            mensaje: regla.mensaje || `Regla '${regla.nombre}' cumplida`,
+            ...valor,
+          });
+        }
+      } else {
+        await alertRepository.resolverPorRegla(regla.id);
+      }
+    }
+  },
+
+  /** PATCH /alerts/:id/reconocer (estado reconocida; la condición puede seguir). */
+  async reconocer(id: string, usuarioId?: string): Promise<Alert> {
+    const alerta = await alertRepository.buscarPorId(id);
+    if (!alerta) throw ApiError.notFound('Alerta no encontrada');
+    const actualizada = await alertRepository.actualizar(id, {
+      estado: 'acknowledged',
+      reconocida_en: new Date(),
+      reconocida_por: usuarioId,
+    });
+    return actualizada ?? alerta;
+  },
 };
+
+/** Evalúa si la regla (según tipo de dato del canal) se cumple con la medición. */
+function evaluarRegla(
+  regla: import('../reglas-alerta/regla-alerta.types.js').FilaReglaDetalle,
+  m: Measurement
+): boolean {
+  const tipo = (regla.tipo_dato ?? 'text').toLowerCase();
+  if (tipo === 'numeric') {
+    const v = m.valor_numerico;
+    if (v === null || v === undefined) return false;
+    const o = regla.operador;
+    if (o === '>') return v > (regla.valor_referencia_numerico ?? 0);
+    if (o === '>=') return v >= (regla.valor_referencia_numerico ?? 0);
+    if (o === '<') return v < (regla.valor_referencia_numerico ?? 0);
+    if (o === '<=') return v <= (regla.valor_referencia_numerico ?? 0);
+    if (o === '=') return v === (regla.valor_referencia_numerico ?? 0);
+    if (o === 'entre')
+      return regla.valor_min !== null && regla.valor_max !== null && v >= regla.valor_min && v <= regla.valor_max;
+    if (o === 'fuera_de_rango')
+      return regla.valor_min !== null && regla.valor_max !== null && (v < regla.valor_min || v > regla.valor_max);
+    return false;
+  }
+  if (tipo === 'boolean') {
+    const b = m.valor_booleano;
+    if (regla.operador === 'es_true') return b === true;
+    if (regla.operador === 'es_false') return b === false;
+    return false;
+  }
+  const texto = (m.valor_texto ?? '').toString();
+  const ref = (regla.valor_referencia_texto ?? '').toString();
+  if (regla.operador === 'igual_a') return texto === ref;
+  if (regla.operador === 'diferente_de') return texto !== ref;
+  if (regla.operador === 'contiene') return texto.includes(ref);
+  return false;
+}
+
+/** Valor disparador de la alerta según tipo de dato. */
+function valorDisparador(
+  regla: import('../reglas-alerta/regla-alerta.types.js').FilaReglaDetalle,
+  m: Measurement
+): { valor_numerico: number | null; valor_texto: string | null; valor_booleano: boolean | null } {
+  const tipo = (regla.tipo_dato ?? 'text').toLowerCase();
+  if (tipo === 'numeric') return { valor_numerico: m.valor_numerico ?? null, valor_texto: null, valor_booleano: null };
+  if (tipo === 'boolean') return { valor_numerico: null, valor_texto: null, valor_booleano: m.valor_booleano ?? null };
+  return { valor_numerico: null, valor_texto: m.valor_texto ?? null, valor_booleano: null };
+}
+

@@ -13,6 +13,7 @@ router.use(middlewareAuth);
 
 router.get('/', alertController.listar);
 router.get('/:id', alertController.obtenerPorId);
+router.patch('/:id/reconocer', requiereRol('usuario', 'admin'), alertController.reconocer);
 router.post('/', requiereRol('usuario', 'admin'), alertController.crear);
 router.patch('/:id', requiereRol('usuario', 'admin'), alertController.actualizar);
 router.delete('/:id', requiereRol('usuario', 'admin'), alertController.eliminar);

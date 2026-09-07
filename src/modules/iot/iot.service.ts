@@ -5,7 +5,6 @@ import type {
   IngestaMedicionesEntrada,
   ResultadoIngesta,
 } from './iot.types.js';
-import { measurementRepository } from '../measurements/measurement.repository.js';
 import { measurementService } from '../measurements/measurement.service.js';
 import { comandoActuadorService } from '../comandos-actuador/comando-actuador.service.js';
 
@@ -43,15 +42,16 @@ export const iotService = {
     }
     const dispositivoId = dispRes.rows[0].id;
 
-    // Carga los sensores que pertenecen a ese dispositivo (con su tipo de dato)
-    const sensRes = await query<SensorMapeo>(
-      `SELECT s.id, s.codigo, COALESCE(tv.tipo_dato, '') AS tipo_dato
-       FROM sensores s
-       LEFT JOIN tipos_variable tv ON tv.id = s.tipo_variable_id
+    // Carga los canales que pertenecen a sensores de ese dispositivo (con tipo de dato)
+    const canalRes = await query<SensorMapeo>(
+      `SELECT c.id, c.codigo, COALESCE(tv.tipo_dato, '') AS tipo_dato
+       FROM canales c
+       JOIN sensores s ON s.id = c.sensor_id
+       LEFT JOIN tipos_variable tv ON tv.id = c.tipo_variable_id
        WHERE s.dispositivo_id = $1`,
       [dispositivoId]
     );
-    const porCodigo = new Map(sensRes.rows.map((s) => [s.codigo, s]));
+    const porCodigo = new Map(canalRes.rows.map((c) => [c.codigo, c]));
 
     let procesadas = 0;
     let fallidas = 0;
@@ -59,27 +59,26 @@ export const iotService = {
 
     for (const item of entrada.mediciones) {
       try {
-        const sensor = porCodigo.get(item.sensor);
-        if (!sensor) {
-          throw new Error(`Sensor '${item.sensor}' no pertenece al dispositivo`);
+        const codigo = item.canal ?? item.sensor;
+        if (!codigo) throw new Error('Cada medición debe indicar "canal" o "sensor"');
+        const canal = porCodigo.get(codigo);
+        if (!canal) {
+          throw new Error(`Canal '${codigo}' no pertenece al dispositivo`);
         }
 
-        const medicionInput = prepararMedicionPorTipo(sensor, item.valor);
-        const medicion = await measurementRepository.crear({
+        const medicionInput = prepararMedicionPorTipo(canal, item.valor);
+        const medicion = await measurementService.crear({
           ...medicionInput,
-          sensor_id: sensor.id,
+          canal_id: canal.id,
           calidad: 'good',
           registrado_en: new Date(),
           metadatos: {
             ...(entrada.metadatos ?? {}),
             fuente: entrada.metadatos?.fuente ?? 'integracion',
             dispositivo: entrada.dispositivo,
-            // Trazabilidad: dueño de la API Key que originó la integración.
             integracion_usuario: integracionUsuarioId,
           },
         });
-        // Evalúa umbrales y dispara alertas si corresponde (valores numéricos)
-        await measurementService.evaluarUmbrales(medicion);
 
         procesadas += 1;
         ids.push(medicion.id);

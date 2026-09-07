@@ -11,6 +11,8 @@ export type EstadoAlerta = 'active' | 'acknowledged' | 'resolved';
 export interface Alert {
   id: string;
   sensor_id: string | null;
+  canal_id?: string | null;
+  regla_id?: string | null;
   medicion_id: number | null;
   tipo: string | null;
   severidad: string | null;
@@ -18,6 +20,7 @@ export interface Alert {
   estado: string;
   iniciada_en: Date;
   reconocida_en: Date | null;
+  reconocida_por?: string | null;
   finalizada_en: Date | null;
   metadatos: Record<string, unknown> | null;
 }
@@ -31,11 +34,14 @@ export interface CrearAlertInput {
   mensaje?: string | null;
   estado?: string;
   reconocida_en?: Date | null;
+  reconocida_por?: string | null;
   finalizada_en?: Date | null;
   metadatos?: Record<string, unknown>;
 }
 
-/** Campos actualizables de una alerta. */
+/**
+ * Campos actualizables de una alerta.
+ */
 export interface ActualizarAlertInput {
   sensor_id?: string | null;
   medicion_id?: number | null;
@@ -44,6 +50,7 @@ export interface ActualizarAlertInput {
   mensaje?: string | null;
   estado?: string;
   reconocida_en?: Date | null;
+  reconocida_por?: string | null;
   finalizada_en?: Date | null;
   metadatos?: Record<string, unknown>;
 }

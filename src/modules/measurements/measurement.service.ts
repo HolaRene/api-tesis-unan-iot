@@ -7,6 +7,7 @@ import type {
 } from './measurement.types.js';
 import { measurementRepository } from './measurement.repository.js';
 import { alertRepository } from '../alerts/alert.repository.js';
+import { alertService } from '../alerts/alert.service.js';
 
 /** Estructura de un umbral activo obtenido para la evaluación. */
 interface UmbralActivo {
@@ -38,6 +39,16 @@ export const measurementService = {
   },
 
   /**
+   * Devuelve el historial de un canal (orden ascendente para gráfica).
+   */
+  async listarCanalPorId(
+    canalId: string,
+    filtro: { desde?: string; hasta?: string; limite?: number }
+  ): Promise<Measurement[]> {
+    return measurementRepository.listarHistorialCanal(canalId, filtro);
+  },
+
+  /**
    * Obtiene una medición por id.
    */
   async obtenerPorId(id: number): Promise<Measurement> {
@@ -54,9 +65,9 @@ export const measurementService = {
    * generar alertas automáticas si el valor queda fuera del rango.
    */
   async crear(entrada: CrearMeasurementInput): Promise<Measurement> {
-    await this.verificarSensor(entrada.sensor_id);
+    if (entrada.sensor_id) await this.verificarSensor(entrada.sensor_id);
     const medicion = await measurementRepository.crear(entrada);
-    await this.evaluarUmbrales(medicion);
+    if (medicion.canal_id) await alertService.evaluarMedicion(medicion);
     return medicion;
   },
 

@@ -2,9 +2,12 @@
  * Tipos del módulo IoT (rutas de integración autenticadas por API Key).
  */
 
-/** Un sensor y su valor dentro del payload de ingesta. */
+/** Un canal (o sensor, por compatibilidad) y su valor dentro del payload. */
 export interface MedicionEntrada {
-  sensor: string; // código o identificador lógico, ej: TEMP-Q2
+  /** Código del canal (preferido en el modelo multivariable). */
+  canal?: string;
+  /** Código del sensor (compatibilidad previa); se normaliza al canal del mismo código si existe. */
+  sensor?: string;
   valor: number | string | boolean | Record<string, unknown> | null;
 }
 

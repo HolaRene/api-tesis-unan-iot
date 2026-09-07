@@ -8,7 +8,8 @@
  */
 export interface Measurement {
   id: number;
-  sensor_id: string;
+  sensor_id: string | null;
+  canal_id?: string | null;
   valor_numerico: number | null;
   valor_texto: string | null;
   valor_booleano: boolean | null;
@@ -24,7 +25,8 @@ export interface Measurement {
  * garantizará que al menos uno esté presente.
  */
 export interface CrearMeasurementInput {
-  sensor_id: string;
+  sensor_id?: string | null;
+  canal_id?: string | null;
   valor_numerico?: number;
   valor_texto?: string;
   valor_booleano?: boolean;

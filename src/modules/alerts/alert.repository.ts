@@ -7,8 +7,8 @@ import type {
 
 /** Columnas devueltas en las consultas que mapean a una Alerta. */
 const CAMPOS_ALERTA = `
-  id, sensor_id, medicion_id, tipo, severidad, mensaje, estado,
-  iniciada_en, reconocida_en, finalizada_en, metadatos`;
+  id, sensor_id, canal_id, regla_id, medicion_id, tipo, severidad, mensaje, estado,
+  iniciada_en, reconocida_en, reconocida_por, finalizada_en, metadatos`;
 
 /**
  * Repositorio de alertas. Contiene únicamente consultas SQL.
@@ -63,8 +63,51 @@ export const alertRepository = {
   },
 
   /**
-   * Actualiza una alerta por id. Construye los SET según los campos.
+   * Crea una alerta vinculada a un canal + regla (modelo multivariable).
    */
+  async crearDesdeRegla(datos: {
+    regla_id: string;
+    canal_id: string;
+    medicion_id: number;
+    severidad: string;
+    mensaje: string;
+    valor_numerico: number | null;
+    valor_texto: string | null;
+    valor_booleano: boolean | null;
+  }): Promise<Alert> {
+    const r = await query<Alert>(
+      `INSERT INTO alertas
+         (regla_id, canal_id, medicion_id, tipo, severidad, mensaje, estado,
+          valor_disparador_numerico, valor_disparador_texto, valor_disparador_booleano,
+          metadatos)
+       VALUES ($1,$2,$3,'regla',$4,$5,'active',$6,$7,$8, '{}')
+       RETURNING *`,
+      [
+        datos.regla_id, datos.canal_id, datos.medicion_id, datos.severidad,
+        datos.mensaje, datos.valor_numerico, datos.valor_texto, datos.valor_booleano,
+      ]
+    );
+    return r.rows[0];
+  },
+
+  /** Busca una alerta activa para una regla (para no duplicar). */
+  async buscarActivaPorRegla(reglaId: string): Promise<Alert | null> {
+    const r = await query<Alert>(
+      `SELECT * FROM alertas WHERE regla_id = $1 AND estado = 'active' ORDER BY iniciada_en DESC LIMIT 1`,
+      [reglaId]
+    );
+    return r.rows[0] ?? null;
+  },
+
+  /** Marca como resuelta la alerta activa de una regla. */
+  async resolverPorRegla(reglaId: string): Promise<void> {
+    await query(
+      `UPDATE alertas SET estado = 'resolved', finalizada_en = NOW()
+       WHERE regla_id = $1 AND estado IN ('active','acknowledged')`,
+      [reglaId]
+    );
+  },
+
   async actualizar(id: string, datos: ActualizarAlertInput): Promise<Alert | null> {
     const sets: string[] = [];
     const valores: unknown[] = [];
@@ -82,6 +125,7 @@ export const alertRepository = {
     if (datos.mensaje !== undefined) agregar('mensaje', datos.mensaje);
     if (datos.estado !== undefined) agregar('estado', datos.estado);
     if (datos.reconocida_en !== undefined) agregar('reconocida_en', datos.reconocida_en);
+    if (datos.reconocida_por !== undefined) agregar('reconocida_por', datos.reconocida_por);
     if (datos.finalizada_en !== undefined) agregar('finalizada_en', datos.finalizada_en);
     if (datos.metadatos !== undefined) {
       agregar('metadatos', JSON.stringify(datos.metadatos));

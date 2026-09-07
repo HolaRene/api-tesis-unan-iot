@@ -4,10 +4,11 @@ import { z } from 'zod';
  * Esquemas Zod del módulo IoT (rutas de integración autenticadas por API Key).
  */
 
-/** Objeto que representa una medición por código de sensor. */
+/** Objeto que representa una medición por canal (o sensor, por compatibilidad). */
 const medicionEntradaSchema = z
   .object({
-    sensor: z.string().min(1, 'El código del sensor es obligatorio'),
+    canal: z.string().min(1, 'El código del canal es obligatorio').optional(),
+    sensor: z.string().min(1, 'El código del sensor es obligatorio').optional(),
     valor: z.union([
       z.number(),
       z.string(),
@@ -16,7 +17,9 @@ const medicionEntradaSchema = z
       z.null(),
     ]),
   })
-  .strict();
+  .refine((m) => m.canal !== undefined || m.sensor !== undefined, {
+    message: 'Cada medición debe indicar "canal" o "sensor"',
+  });
 
 /** Payload para POST /api/v1/iot/mediciones. */
 export const ingestaMedicionesSchema = z

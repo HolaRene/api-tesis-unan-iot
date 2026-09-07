@@ -7,7 +7,7 @@ import type {
 
 /** Columnas devueltas en las consultas que mapean a una Medición. */
 const CAMPOS_MEDICION = `
-  id, sensor_id, valor_numerico, valor_texto, valor_booleano, valor_json,
+  id, sensor_id, canal_id, valor_numerico, valor_texto, valor_booleano, valor_json,
   calidad, registrado_en, metadatos`;
 
 /**
@@ -77,6 +77,26 @@ export const measurementRepository = {
   },
 
   /**
+   * Lista el historial de un canal (orden ascendente para gráfica).
+   */
+  async listarHistorialCanal(canalId: string, filtro: { desde?: string; hasta?: string; limite?: number } = {}): Promise<Measurement[]> {
+    const cond = ['canal_id = $1'];
+    const vals: unknown[] = [canalId];
+    let indice = 2;
+    if (filtro.desde !== undefined) { cond.push(`registrado_en >= $${indice++}`); vals.push(filtro.desde); }
+    if (filtro.hasta !== undefined) { cond.push(`registrado_en <= $${indice++}`); vals.push(filtro.hasta); }
+    const limite = filtro.limite ?? 100;
+    const r = await query<Measurement>(
+      `SELECT ${CAMPOS_MEDICION} FROM mediciones
+       WHERE ${cond.join(' AND ')}
+       ORDER BY registrado_en ASC, id ASC
+       LIMIT $${indice}`,
+      [...vals, limite]
+    );
+    return r.rows;
+  },
+
+  /**
    * Busca una medición por id.
    */
   async buscarPorId(id: number): Promise<Measurement | null> {
@@ -94,13 +114,14 @@ export const measurementRepository = {
   async crear(datos: CrearMeasurementInput): Promise<Measurement> {
     const resultado = await query<Measurement>(
       `INSERT INTO mediciones
-         (sensor_id, valor_numerico, valor_texto, valor_booleano, valor_json,
+         (canal_id, sensor_id, valor_numerico, valor_texto, valor_booleano, valor_json,
           calidad, registrado_en, metadatos)
        VALUES
-         ($1, $2, $3, $4, $5, COALESCE($6, 'good'), COALESCE($7, NOW()), $8)
+         ($1, $2, $3, $4, $5, $6, COALESCE($7, 'good'), COALESCE($8, NOW()), $9)
        RETURNING ${CAMPOS_MEDICION}`,
       [
-        datos.sensor_id,
+        datos.canal_id ?? null,
+        datos.sensor_id ?? null,
         datos.valor_numerico ?? null,
         datos.valor_texto ?? null,
         datos.valor_booleano ?? null,
