@@ -28,6 +28,16 @@ export const measurementService = {
   },
 
   /**
+   * Devuelve el historial de un sensor (orden ascendente para gráfica).
+   */
+  async listarHistorialSensor(
+    sensorId: string,
+    filtro: { desde?: string; hasta?: string; limite?: number }
+  ): Promise<Measurement[]> {
+    return measurementRepository.listarHistorialSensor(sensorId, filtro);
+  },
+
+  /**
    * Obtiene una medición por id.
    */
   async obtenerPorId(id: number): Promise<Measurement> {

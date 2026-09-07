@@ -16,29 +16,64 @@ const CAMPOS_MEDICION = `
  */
 export const measurementRepository = {
   /**
-   * Lista mediciones opcionalmente filtradas por sensor y con un límite.
+   * Lista mediciones con filtros opcionales (global).
+   * Admite: sensor_id, dispositivo_id, area_id, tipo_variable_id,
+   * desde, hasta, limite. Permite orden ascendente para historial de gráficas.
    */
   async listar(filtro: FiltrarMediciones): Promise<Measurement[]> {
-    const condiciones: string[] = [];
-    const valores: unknown[] = [];
+    const cond: string[] = [];
+    const vals: unknown[] = [];
+    const nexo = (v: unknown) => {
+      vals.push(v);
+      return `$${vals.length}`;
+    };
 
-    if (filtro.sensor_id !== undefined) {
-      condiciones.push(`sensor_id = $${valores.length + 1}`);
-      valores.push(filtro.sensor_id);
-    }
+    if (filtro.sensor_id !== undefined) cond.push(`m.sensor_id = ${nexo(filtro.sensor_id)}`);
+    if (filtro.dispositivo_id !== undefined) cond.push(`s.dispositivo_id = ${nexo(filtro.dispositivo_id)}`);
+    if (filtro.area_id !== undefined) cond.push(`d.area_id = ${nexo(filtro.area_id)}`);
+    if (filtro.tipo_variable_id !== undefined) cond.push(`s.tipo_variable_id = ${nexo(filtro.tipo_variable_id)}`);
+    if (filtro.desde !== undefined) cond.push(`m.registrado_en >= ${nexo(filtro.desde)}`);
+    if (filtro.hasta !== undefined) cond.push(`m.registrado_en <= ${nexo(filtro.hasta)}`);
 
-    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
+    const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+    const orden = filtro.orden_ascendente ? 'ASC' : 'DESC';
     const limite = filtro.limite ?? 100;
 
-    const resultado = await query<Measurement>(
-      `SELECT ${CAMPOS_MEDICION}
-       FROM mediciones
-       ${where}
-       ORDER BY registrado_en DESC
-       LIMIT $${valores.length + 1}`,
-      [...valores, limite]
+    const sql = `
+      SELECT m.id, m.sensor_id, m.valor_numerico, m.valor_texto, m.valor_booleano,
+             m.valor_json, m.calidad, m.registrado_en, m.metadatos
+      FROM mediciones m
+      JOIN sensores s ON s.id = m.sensor_id
+      LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
+      ${where}
+      ORDER BY m.registrado_en ${orden}, m.id ${orden}
+      LIMIT ${nexo(limite)}
+    `;
+
+    const r = await query<Measurement>(sql, vals);
+    return r.rows;
+  },
+
+  /**
+   * Lista el historial de un solo sensor (orden ascendente para gráfica),
+   * permitiendo filtros desde/hasta y limite.
+   */
+  async listarHistorialSensor(sensorId: string, filtro: { desde?: string; hasta?: string; limite?: number } = {}): Promise<Measurement[]> {
+    const cond = ['sensor_id = $1'];
+    const vals: unknown[] = [sensorId];
+    let indice = 2;
+    if (filtro.desde !== undefined) { cond.push(`registrado_en >= $${indice++}`); vals.push(filtro.desde); }
+    if (filtro.hasta !== undefined) { cond.push(`registrado_en <= $${indice++}`); vals.push(filtro.hasta); }
+    const limite = filtro.limite ?? 100;
+
+    const r = await query<Measurement>(
+      `SELECT ${CAMPOS_MEDICION} FROM mediciones
+       WHERE ${cond.join(' AND ')}
+       ORDER BY registrado_en ASC, id ASC
+       LIMIT $${indice}`,
+      [...vals, limite]
     );
-    return resultado.rows;
+    return r.rows;
   },
 
   /**

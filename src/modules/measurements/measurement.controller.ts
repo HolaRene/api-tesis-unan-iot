@@ -13,14 +13,20 @@ import { measurementService } from './measurement.service.js';
  */
 export const measurementController = {
   /**
-   * GET /api/v1/measurements?[sensor_id=&limite=]
+   * GET /api/v1/measurements — historial global con filtros opcionales.
    */
   async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filtro = listarMedicionesSchema.parse(req.query);
       const registros = await measurementService.listar({
         sensor_id: filtro.sensor_id,
+        dispositivo_id: filtro.dispositivo_id,
+        area_id: filtro.area_id,
+        tipo_variable_id: filtro.tipo_variable_id,
+        desde: filtro.desde,
+        hasta: filtro.hasta,
         limite: filtro.limite,
+        orden_ascendente: filtro.orden === 'asc',
       });
       responderExito(res, registros, 200);
     } catch (error) {

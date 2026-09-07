@@ -24,10 +24,7 @@ export const crearVariableTypeSchema = z.object({
     .min(1, 'El nombre es obligatorio')
     .max(100, 'El nombre no puede superar 100 caracteres'),
   descripcion: textoOpcional(1000),
-  tipo_dato: z
-    .string()
-    .min(1, 'El tipo de dato es obligatorio')
-    .max(30, 'El tipo de dato no puede superar 30 caracteres'),
+  tipo_dato: z.enum(['numeric', 'boolean', 'text', 'json']),
   unidad_default: textoOpcional(30),
 });
 
@@ -50,11 +47,7 @@ export const actualizarVariableTypeSchema = z
       .max(100, 'El nombre no puede superar 100 caracteres')
       .optional(),
     descripcion: textoOpcional(1000),
-    tipo_dato: z
-      .string()
-      .min(1, 'El tipo de dato es obligatorio')
-      .max(30, 'El tipo de dato no puede superar 30 caracteres')
-      .optional(),
+    tipo_dato: z.enum(['numeric', 'boolean', 'text', 'json']).optional(),
     unidad_default: textoOpcional(30),
   })
   .refine((datos) => Object.keys(datos).length > 0, {

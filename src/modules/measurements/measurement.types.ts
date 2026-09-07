@@ -34,8 +34,15 @@ export interface CrearMeasurementInput {
   metadatos?: Record<string, unknown>;
 }
 
-/** Parámetros de consulta para listar mediciones. */
+/** Parámetros de consulta para listar mediciones (global). */
 export interface FiltrarMediciones {
   sensor_id?: string;
+  dispositivo_id?: string;
+  area_id?: string;
+  tipo_variable_id?: string;
+  desde?: string; // ISO fecha/hora para registrado_en >= 
+  hasta?: string; // ISO fecha/hora para registrado_en <=
   limite?: number;
+  /** true = orden ascendente (historial para gráfica), false/undefined = descendente */
+  orden_ascendente?: boolean;
 }

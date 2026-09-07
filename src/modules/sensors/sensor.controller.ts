@@ -6,6 +6,7 @@ import {
   idSensorSchema,
 } from './sensor.schema.js';
 import { sensorService } from './sensor.service.js';
+import { measurementService } from '../measurements/measurement.service.js';
 
 /**
  * Controlador HTTP del módulo de sensores.
@@ -14,10 +15,19 @@ import { sensorService } from './sensor.service.js';
 export const sensorController = {
   /**
    * GET /api/v1/sensors
+   * Filtros opcionales en query: area_id, dispositivo_id, tipo_variable_id,
+   * activo ('true'/'false'), buscar (nombre/código).
    */
-  async listar(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const registros = await sensorService.listar();
+      const q = req.query as Record<string, string | undefined>;
+      const registros = await sensorService.listar({
+        area_id: q.area_id,
+        dispositivo_id: q.dispositivo_id,
+        tipo_variable_id: q.tipo_variable_id,
+        activo: q.activo === 'true' ? true : q.activo === 'false' ? false : undefined,
+        buscar: q.buscar,
+      });
       responderExito(res, registros, 200);
     } catch (error) {
       next(error);
@@ -72,6 +82,26 @@ export const sensorController = {
       const { id } = idSensorSchema.parse(req.params);
       await sensorService.eliminar(id);
       responderExito(res, null, 200, 'Sensor eliminado correctamente');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/sensors/:id/mediciones
+   * Historial del sensor (filtros opcionales desde/hasta/limite).
+   */
+  async historialMediciones(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = idSensorSchema.parse(req.params);
+      const q = req.query as Record<string, string | undefined>;
+      await sensorService.obtenerPorId(id); // 404 si no existe
+      const mediciones = await measurementService.listarHistorialSensor(id, {
+        desde: q.desde,
+        hasta: q.hasta,
+        limite: q.limite ? Number(q.limite) : undefined,
+      });
+      responderExito(res, { sensor_id: id, mediciones }, 200);
     } catch (error) {
       next(error);
     }

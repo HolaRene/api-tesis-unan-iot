@@ -44,6 +44,12 @@ export const idMedicionSchema = z.object({
 /** Esquema para el query de listado (filtro por sensor y límite). */
 export const listarMedicionesSchema = z.object({
   sensor_id: z.string().uuid('El id del sensor no es válido').optional(),
+  dispositivo_id: z.string().uuid('El id del dispositivo no es válido').optional(),
+  area_id: z.string().uuid('El id del área no es válido').optional(),
+  tipo_variable_id: z.string().uuid('El id del tipo no es válido').optional(),
+  desde: z.string().optional(),
+  hasta: z.string().optional(),
+  orden: z.enum(['asc', 'desc']).optional(),
   limite: z.coerce.number().int().min(1).max(500).default(100).optional(),
 });
 

@@ -12,10 +12,16 @@ import { sensorRepository } from './sensor.repository.js';
  */
 export const sensorService = {
   /**
-   * Lista todos los sensores.
+   * Lista todos los sensores (con filtros opcionales).
    */
-  async listar(): Promise<SensorConNombres[]> {
-    return sensorRepository.listar();
+  async listar(filtro?: {
+    area_id?: string;
+    dispositivo_id?: string;
+    tipo_variable_id?: string;
+    activo?: boolean;
+    buscar?: string;
+  }): Promise<SensorConNombres[]> {
+    return sensorRepository.listar(filtro);
   },
 
   /**
