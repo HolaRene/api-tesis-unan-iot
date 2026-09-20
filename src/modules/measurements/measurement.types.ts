@@ -49,3 +49,46 @@ export interface FiltrarMediciones {
   /** true = orden ascendente (historial para gráfica), false/undefined = descendente */
   orden_ascendente?: boolean;
 }
+
+/**
+ * Intervalos de agrupación temporal admitidos para las series agregadas.
+ * Se validan contra esta lista (lista blanca) antes de tocar el SQL.
+ */
+export const INTERVALOS_AGREGACION = [
+  'minuto',
+  'hora',
+  'dia',
+  'semana',
+  'mes',
+] as const;
+
+export type IntervaloAgregacion = (typeof INTERVALOS_AGREGACION)[number];
+
+/** Un cubo temporal con las estadísticas de las mediciones que contiene. */
+export interface SerieAgregada {
+  /** Inicio del intervalo (lo devuelve `date_trunc`). */
+  cubo: Date;
+  media: number | null;
+  minimo: number | null;
+  maximo: number | null;
+  /** Desviación estándar muestral (null si solo hay 1 muestra). */
+  desviacion: number | null;
+  /** Número de mediciones dentro del cubo. */
+  muestras: number;
+}
+
+/** Respuesta del endpoint de series: los cubos + un resumen global. */
+export interface SeriesAgregadas {
+  intervalo: IntervaloAgregacion;
+  desde: string | null;
+  hasta: string | null;
+  /** Totales del periodo completo (no la media de las medias). */
+  resumen: {
+    media: number | null;
+    minimo: number | null;
+    maximo: number | null;
+    muestras: number;
+  };
+  series: SerieAgregada[];
+}
+

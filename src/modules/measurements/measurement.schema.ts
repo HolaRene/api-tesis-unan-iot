@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INTERVALOS_AGREGACION } from './measurement.types.js';
 
 /**
  * Esquemas Zod del módulo de mediciones.
@@ -59,3 +60,27 @@ export type CrearMeasurementBody = z.infer<typeof crearMeasurementSchema>;
 
 /** Tipo inferido del esquema de listado. */
 export type ListarMedicionesQuery = z.infer<typeof listarMedicionesSchema>;
+
+/**
+ * Esquema del query para las SERIES AGREGADAS.
+ *
+ * `intervalo` se valida contra la lista blanca de intervalos permitidos: ese
+ * valor acaba dentro del SQL (`date_trunc`), por lo que NUNCA debe llegar
+ * libre desde el cliente.
+ */
+export const seriesMedicionesSchema = z.object({
+  sensor_id: z.string().uuid('El id del sensor no es válido').optional(),
+  canal_id: z.string().uuid('El id del canal no es válido').optional(),
+  dispositivo_id: z
+    .string()
+    .uuid('El id del dispositivo no es válido')
+    .optional(),
+  area_id: z.string().uuid('El id del área no es válido').optional(),
+  desde: z.string().optional(),
+  hasta: z.string().optional(),
+  intervalo: z.enum(INTERVALOS_AGREGACION).default('hora'),
+  /** Nº máximo de cubos devueltos (protege la respuesta). */
+  limite: z.coerce.number().int().min(1).max(2000).default(1000),
+});
+
+export type SeriesMedicionesQuery = z.infer<typeof seriesMedicionesSchema>;

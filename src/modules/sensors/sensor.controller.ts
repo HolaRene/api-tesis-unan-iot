@@ -8,6 +8,7 @@ import {
 import { sensorService } from './sensor.service.js';
 import { canalService } from '../canales/canal.service.js';
 import { measurementService } from '../measurements/measurement.service.js';
+import { seriesMedicionesSchema } from '../measurements/measurement.schema.js';
 
 /**
  * Controlador HTTP del módulo de sensores.
@@ -106,6 +107,36 @@ export const sensorController = {
         limite: q.limite ? Number(q.limite) : undefined,
       });
       responderExito(res, { sensor_id: id, mediciones }, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/sensors/:id/series
+   * Series agregadas (media/mín/máx/muestras) por intervalo temporal.
+   *
+   * Es la base de los gráficos de historial: el navegador recibe unos pocos
+   * puntos ya agregados en lugar de todas las mediciones.
+   */
+  async seriesSensor(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = idSensorSchema.parse(req.params);
+      const q = seriesMedicionesSchema.parse(req.query);
+      await sensorService.obtenerPorId(id, req.usuario); // 404 si no existe
+
+      const resultado = await measurementService.seriesAgregadas(
+        {
+          sensor_id: id,
+          canal_id: q.canal_id,
+          desde: q.desde,
+          hasta: q.hasta,
+        },
+        q.intervalo,
+        req.usuario,
+        q.limite
+      );
+      responderExito(res, { sensor_id: id, ...resultado }, 200);
     } catch (error) {
       next(error);
     }

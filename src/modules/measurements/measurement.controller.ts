@@ -4,6 +4,7 @@ import {
   crearMeasurementSchema,
   idMedicionSchema,
   listarMedicionesSchema,
+  seriesMedicionesSchema,
 } from './measurement.schema.js';
 import { measurementService } from './measurement.service.js';
 
@@ -12,6 +13,34 @@ import { measurementService } from './measurement.service.js';
  * Solo gestiona request/response; la lógica de negocio está en el service.
  */
 export const measurementController = {
+  /**
+   * GET /api/v1/measurements/series — series agregadas por intervalo.
+   *
+   * Devuelve medias (y mín/máx/muestras) agrupadas por hora, día, semana o
+   * mes, en lugar de miles de filas crudas.
+   */
+  async series(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const q = seriesMedicionesSchema.parse(req.query);
+      const resultado = await measurementService.seriesAgregadas(
+        {
+          sensor_id: q.sensor_id,
+          canal_id: q.canal_id,
+          dispositivo_id: q.dispositivo_id,
+          area_id: q.area_id,
+          desde: q.desde,
+          hasta: q.hasta,
+        },
+        q.intervalo,
+        req.usuario,
+        q.limite
+      );
+      responderExito(res, resultado, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   /**
    * GET /api/v1/measurements — historial global con filtros opcionales.
    */

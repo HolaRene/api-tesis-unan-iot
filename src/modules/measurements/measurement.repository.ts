@@ -2,7 +2,9 @@ import { query } from '../../database/pool.js';
 import type {
   CrearMeasurementInput,
   FiltrarMediciones,
+  IntervaloAgregacion,
   Measurement,
+  SerieAgregada,
 } from './measurement.types.js';
 import { esAlcanceTotal, type UsuarioAlcance } from '../../utils/alcance.js';
 
@@ -205,5 +207,106 @@ export const measurementRepository = {
       [id]
     );
     return (resultado.rowCount ?? 0) > 0;
+  },
+
+  /**
+   * SERIES AGREGADAS por intervalo de tiempo.
+   *
+   * Agrupa las mediciones numéricas con `date_trunc` y devuelve estadísticas
+   * por cubo temporal. Esto evita transferir miles de filas al navegador:
+   * con un mes de datos cada 5 s serían ~500.000 filas; agregadas por hora,
+   * 720 puntos.
+   *
+   * IMPORTANTE: `intervalo` NUNCA se interpola directamente en el SQL (viene
+   * de la query string). Se valida contra una lista blanca y se mapea a un
+   * literal fijo, evitando inyección.
+   *
+   * @param filtro  ids y rango temporal
+   * @param intervalo 'hora' | 'dia' | 'semana' | 'mes'
+   * @param usuario alcance de datos (null/undefined = sin filtro)
+   */
+  async seriesAgregadas(
+    filtro: {
+      sensor_id?: string;
+      canal_id?: string;
+      dispositivo_id?: string;
+      area_id?: string;
+      desde?: string;
+      hasta?: string;
+    },
+    intervalo: IntervaloAgregacion,
+    usuario?: UsuarioAlcance | null,
+    limiteCubos = 1000
+  ): Promise<SerieAgregada[]> {
+    // Lista blanca: el valor se resuelve aquí, nunca llega del cliente.
+    const TRUNCS: Record<IntervaloAgregacion, string> = {
+      minuto: 'minute',
+      hora: 'hour',
+      dia: 'day',
+      semana: 'week',
+      mes: 'month',
+    };
+    const trunc = TRUNCS[intervalo];
+
+    const cond: string[] = [];
+    const vals: unknown[] = [];
+    const nexo = (v: unknown) => {
+      vals.push(v);
+      return `$${vals.length}`;
+    };
+
+    // Solo valores numéricos: las series temporales agregadas aplican a
+    // magnitudes continuas (temperatura, humedad…).
+    cond.push('m.valor_numerico IS NOT NULL');
+
+    const sensorEfectivo = `COALESCE(m.sensor_id, c.sensor_id)`;
+
+    if (filtro.sensor_id !== undefined) {
+      cond.push(`${sensorEfectivo} = ${nexo(filtro.sensor_id)}`);
+    }
+    if (filtro.canal_id !== undefined) {
+      cond.push(`m.canal_id = ${nexo(filtro.canal_id)}`);
+    }
+    if (filtro.dispositivo_id !== undefined) {
+      cond.push(`s.dispositivo_id = ${nexo(filtro.dispositivo_id)}`);
+    }
+    if (filtro.area_id !== undefined) {
+      cond.push(`d.area_id = ${nexo(filtro.area_id)}`);
+    }
+    if (filtro.desde !== undefined) {
+      cond.push(`m.registrado_en >= ${nexo(filtro.desde)}`);
+    }
+    if (filtro.hasta !== undefined) {
+      cond.push(`m.registrado_en <= ${nexo(filtro.hasta)}`);
+    }
+
+    // Aislamiento por propietario del dispositivo (igual que el resto).
+    if (!esAlcanceTotal(usuario) && usuario) {
+      const u = nexo(usuario.id);
+      cond.push(`(d.propietario_id = ${u} OR d.propietario_id IS NULL)`);
+    }
+
+    const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT
+        date_trunc('${trunc}', m.registrado_en) AS cubo,
+        avg(m.valor_numerico)  AS media,
+        min(m.valor_numerico)  AS minimo,
+        max(m.valor_numerico)  AS maximo,
+        stddev_samp(m.valor_numerico) AS desviacion,
+        count(*)::int          AS muestras
+      FROM mediciones m
+      LEFT JOIN canales c ON c.id = m.canal_id
+      LEFT JOIN sensores s ON s.id = ${sensorEfectivo}
+      LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
+      ${where}
+      GROUP BY cubo
+      ORDER BY cubo ASC
+      LIMIT ${nexo(limiteCubos)}
+    `;
+
+    const r = await query<SerieAgregada>(sql, vals);
+    return r.rows;
   },
 };

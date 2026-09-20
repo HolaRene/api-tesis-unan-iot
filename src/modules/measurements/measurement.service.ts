@@ -3,7 +3,9 @@ import { ApiError } from '../../utils/api-error.js';
 import type {
   CrearMeasurementInput,
   FiltrarMediciones,
+  IntervaloAgregacion,
   Measurement,
+  SeriesAgregadas,
 } from './measurement.types.js';
 import { measurementRepository } from './measurement.repository.js';
 import { alertRepository } from '../alerts/alert.repository.js';
@@ -162,5 +164,61 @@ export const measurementService = {
         },
       });
     }
+  },
+
+  /**
+   * Series agregadas por intervalo (hora/día/semana/mes).
+   *
+   * Agrupa en SQL para no transferir miles de filas al navegador. El resumen
+   * se calcula sobre los CUBOS ya agregados y ponderando por el número de
+   * muestras, de modo que la media global es la media real de todas las
+   * mediciones (no la media de las medias, que sería incorrecta cuando los
+   * cubos tienen distinto número de muestras).
+   */
+  async seriesAgregadas(
+    filtro: {
+      sensor_id?: string;
+      canal_id?: string;
+      dispositivo_id?: string;
+      area_id?: string;
+      desde?: string;
+      hasta?: string;
+    },
+    intervalo: IntervaloAgregacion,
+    usuario?: UsuarioAlcance | null,
+    limite = 1000
+  ): Promise<SeriesAgregadas> {
+    const cubos = await measurementRepository.seriesAgregadas(
+      filtro,
+      intervalo,
+      usuario,
+      limite
+    );
+
+    // Media ponderada por muestras + extremos reales del periodo.
+    const totalMuestras = cubos.reduce((acc, c) => acc + (c.muestras ?? 0), 0);
+    const sumaPonderada = cubos.reduce(
+      (acc, c) => acc + (c.media ?? 0) * (c.muestras ?? 0),
+      0
+    );
+    const minimos = cubos
+      .map((c) => c.minimo)
+      .filter((v): v is number => v !== null);
+    const maximos = cubos
+      .map((c) => c.maximo)
+      .filter((v): v is number => v !== null);
+
+    return {
+      intervalo,
+      desde: filtro.desde ?? null,
+      hasta: filtro.hasta ?? null,
+      resumen: {
+        media: totalMuestras > 0 ? sumaPonderada / totalMuestras : null,
+        minimo: minimos.length ? Math.min(...minimos) : null,
+        maximo: maximos.length ? Math.max(...maximos) : null,
+        muestras: totalMuestras,
+      },
+      series: cubos,
+    };
   },
 };
