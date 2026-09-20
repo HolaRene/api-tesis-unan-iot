@@ -4,6 +4,7 @@ import type {
   FiltrarMediciones,
   Measurement,
 } from './measurement.types.js';
+import { esAlcanceTotal, type UsuarioAlcance } from '../../utils/alcance.js';
 
 /** Columnas devueltas en las consultas que mapean a una Medición. */
 const CAMPOS_MEDICION = `
@@ -17,10 +18,18 @@ const CAMPOS_MEDICION = `
 export const measurementRepository = {
   /**
    * Lista mediciones con filtros opcionales (global).
-   * Admite: sensor_id, dispositivo_id, area_id, tipo_variable_id,
+   * Admite: sensor_id, canal_id, dispositivo_id, area_id, tipo_variable_id,
    * desde, hasta, limite. Permite orden ascendente para historial de gráficas.
+   *
+   * IMPORTANTE (modelo multivariable): una medición puede venir por `canal_id`
+   * con `sensor_id = NULL`. Por eso los JOIN son LEFT y el sensor/tipo se
+   * derivan del canal cuando la medición no trae `sensor_id` propio.
+   * Un JOIN interno ocultaría todas las mediciones hechas por canal.
    */
-  async listar(filtro: FiltrarMediciones): Promise<Measurement[]> {
+  async listar(
+    filtro: FiltrarMediciones,
+    usuario?: UsuarioAlcance | null
+  ): Promise<Measurement[]> {
     const cond: string[] = [];
     const vals: unknown[] = [];
     const nexo = (v: unknown) => {
@@ -28,22 +37,46 @@ export const measurementRepository = {
       return `$${vals.length}`;
     };
 
-    if (filtro.sensor_id !== undefined) cond.push(`m.sensor_id = ${nexo(filtro.sensor_id)}`);
-    if (filtro.dispositivo_id !== undefined) cond.push(`s.dispositivo_id = ${nexo(filtro.dispositivo_id)}`);
+    // Sensor efectivo: el propio de la medición o, si no, el del canal.
+    const sensorEfectivo = `COALESCE(m.sensor_id, c.sensor_id)`;
+
+    if (filtro.sensor_id !== undefined) {
+      cond.push(`${sensorEfectivo} = ${nexo(filtro.sensor_id)}`);
+    }
+    if (filtro.canal_id !== undefined) {
+      cond.push(`m.canal_id = ${nexo(filtro.canal_id)}`);
+    }
+    if (filtro.dispositivo_id !== undefined) {
+      cond.push(`s.dispositivo_id = ${nexo(filtro.dispositivo_id)}`);
+    }
     if (filtro.area_id !== undefined) cond.push(`d.area_id = ${nexo(filtro.area_id)}`);
-    if (filtro.tipo_variable_id !== undefined) cond.push(`s.tipo_variable_id = ${nexo(filtro.tipo_variable_id)}`);
+    if (filtro.tipo_variable_id !== undefined) {
+      // El tipo puede venir del canal (modelo nuevo) o del sensor (compat).
+      cond.push(
+        `COALESCE(c.tipo_variable_id, s.tipo_variable_id) = ${nexo(filtro.tipo_variable_id)}`
+      );
+    }
     if (filtro.desde !== undefined) cond.push(`m.registrado_en >= ${nexo(filtro.desde)}`);
     if (filtro.hasta !== undefined) cond.push(`m.registrado_en <= ${nexo(filtro.hasta)}`);
+
+    // Aislamiento: la medición hereda la propiedad del dispositivo de su canal
+    // (o de su sensor, si la medición es antigua y no tiene canal).
+    if (!esAlcanceTotal(usuario) && usuario) {
+      const u = nexo(usuario.id);
+      cond.push(`(d.propietario_id = ${u} OR d.propietario_id IS NULL)`);
+    }
 
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
     const orden = filtro.orden_ascendente ? 'ASC' : 'DESC';
     const limite = filtro.limite ?? 100;
 
     const sql = `
-      SELECT m.id, m.sensor_id, m.valor_numerico, m.valor_texto, m.valor_booleano,
+      SELECT m.id, ${sensorEfectivo} AS sensor_id, m.canal_id,
+             m.valor_numerico, m.valor_texto, m.valor_booleano,
              m.valor_json, m.calidad, m.registrado_en, m.metadatos
       FROM mediciones m
-      JOIN sensores s ON s.id = m.sensor_id
+      LEFT JOIN canales c ON c.id = m.canal_id
+      LEFT JOIN sensores s ON s.id = ${sensorEfectivo}
       LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
       ${where}
       ORDER BY m.registrado_en ${orden}, m.id ${orden}
@@ -57,19 +90,28 @@ export const measurementRepository = {
   /**
    * Lista el historial de un solo sensor (orden ascendente para gráfica),
    * permitiendo filtros desde/hasta y limite.
+   *
+   * Incluye las mediciones hechas por cualquiera de sus canales (modelo
+   * multivariable), donde `sensor_id` puede ser NULL.
    */
   async listarHistorialSensor(sensorId: string, filtro: { desde?: string; hasta?: string; limite?: number } = {}): Promise<Measurement[]> {
-    const cond = ['sensor_id = $1'];
+    const cond = [
+      `(m.sensor_id = $1 OR m.canal_id IN (SELECT id FROM canales WHERE sensor_id = $1))`,
+    ];
     const vals: unknown[] = [sensorId];
     let indice = 2;
-    if (filtro.desde !== undefined) { cond.push(`registrado_en >= $${indice++}`); vals.push(filtro.desde); }
-    if (filtro.hasta !== undefined) { cond.push(`registrado_en <= $${indice++}`); vals.push(filtro.hasta); }
+    if (filtro.desde !== undefined) { cond.push(`m.registrado_en >= $${indice++}`); vals.push(filtro.desde); }
+    if (filtro.hasta !== undefined) { cond.push(`m.registrado_en <= $${indice++}`); vals.push(filtro.hasta); }
     const limite = filtro.limite ?? 100;
 
     const r = await query<Measurement>(
-      `SELECT ${CAMPOS_MEDICION} FROM mediciones
+      `SELECT m.id, COALESCE(m.sensor_id, c.sensor_id) AS sensor_id, m.canal_id,
+              m.valor_numerico, m.valor_texto, m.valor_booleano, m.valor_json,
+              m.calidad, m.registrado_en, m.metadatos
+       FROM mediciones m
+       LEFT JOIN canales c ON c.id = m.canal_id
        WHERE ${cond.join(' AND ')}
-       ORDER BY registrado_en ASC, id ASC
+       ORDER BY m.registrado_en ASC, m.id ASC
        LIMIT $${indice}`,
       [...vals, limite]
     );
@@ -97,12 +139,32 @@ export const measurementRepository = {
   },
 
   /**
-   * Busca una medición por id.
+   * Busca una medición por id, solo si es visible para el usuario.
+   * Sin `usuario` (o con `null`) no filtra: uso interno (IoT).
    */
-  async buscarPorId(id: number): Promise<Measurement | null> {
+  async buscarPorId(
+    id: number,
+    usuario?: UsuarioAlcance | null
+  ): Promise<Measurement | null> {
+    if (!usuario || esAlcanceTotal(usuario)) {
+      const resultado = await query<Measurement>(
+        `SELECT ${CAMPOS_MEDICION} FROM mediciones WHERE id = $1 LIMIT 1`,
+        [id]
+      );
+      return resultado.rows[0] ?? null;
+    }
+
     const resultado = await query<Measurement>(
-      `SELECT ${CAMPOS_MEDICION} FROM mediciones WHERE id = $1 LIMIT 1`,
-      [id]
+      `SELECT m.id, m.sensor_id, m.canal_id, m.valor_numerico, m.valor_texto,
+              m.valor_booleano, m.valor_json, m.calidad, m.registrado_en, m.metadatos
+       FROM mediciones m
+       LEFT JOIN canales c ON c.id = m.canal_id
+       LEFT JOIN sensores s ON s.id = COALESCE(m.sensor_id, c.sensor_id)
+       LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
+       WHERE m.id = $1
+         AND (d.propietario_id = $2 OR d.propietario_id IS NULL)
+       LIMIT 1`,
+      [id, usuario.id]
     );
     return resultado.rows[0] ?? null;
   },

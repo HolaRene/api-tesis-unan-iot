@@ -14,6 +14,7 @@ router.use(middlewareAuth);
 router.get('/', alertController.listar);
 router.get('/:id', alertController.obtenerPorId);
 router.patch('/:id/reconocer', requiereRol('usuario', 'admin'), alertController.reconocer);
+router.patch('/:id/resolver', requiereRol('usuario', 'admin'), alertController.resolver);
 router.post('/', requiereRol('usuario', 'admin'), alertController.crear);
 router.patch('/:id', requiereRol('usuario', 'admin'), alertController.actualizar);
 router.delete('/:id', requiereRol('usuario', 'admin'), alertController.eliminar);

@@ -49,5 +49,24 @@ export const comandoIntegracionSchema = z
   })
   .strict();
 
+/**
+ * Payload para POST /api/v1/iot/dispositivos/:identificador/estado.
+ * Heartbeat de estado que puede enviar el propio equipo (PLC, ESP32, RPi…).
+ */
+export const estadoDispositivoSchema = z
+  .object({
+    estado: z
+      .enum(['online', 'offline', 'mantenimiento', 'error'])
+      .optional(),
+    direccion_ip: z
+      .string()
+      .regex(/^\d{1,3}(\.\d{1,3}){3}$/, 'La dirección IP no es válida')
+      .optional()
+      .nullable(),
+    metadatos: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+
 export type IngestaMedicionesBody = z.infer<typeof ingestaMedicionesSchema>;
 export type ComandoIntegracionBody = z.infer<typeof comandoIntegracionSchema>;
+export type EstadoDispositivoBody = z.infer<typeof estadoDispositivoSchema>;

@@ -5,6 +5,11 @@ import type {
   ActualizarCanalInput,
   FiltroCanales,
 } from './canal.types.js';
+import {
+  condicionVisibilidadHeredada,
+  esAlcanceTotal,
+  type UsuarioAlcance,
+} from '../../utils/alcance.js';
 
 /** Listado de canales con relaciones + última medición (LATERAL). */
 const SELECT_CANAL = `
@@ -38,7 +43,7 @@ const FROM_CANAL = `
   ) cmn ON true
 `;
 
-function construirCondiciones(f: FiltroCanales) {
+function construirCondiciones(f: FiltroCanales, usuario?: UsuarioAlcance | null) {
   const cond: string[] = [];
   const valores: unknown[] = [];
   const p = (v: unknown) => { valores.push(v); return `$${valores.length}`; };
@@ -51,13 +56,22 @@ function construirCondiciones(f: FiltroCanales) {
     const b = `%${f.buscar}%`;
     cond.push(`(c.nombre ILIKE ${p(b)} OR c.codigo ILIKE ${p(b)})`);
   }
+
+  // Aislamiento: el canal hereda la propiedad de su dispositivo.
+  if (!esAlcanceTotal(usuario) && usuario) {
+    cond.push(`(d.propietario_id = ${p(usuario.id)} OR d.propietario_id IS NULL)`);
+  }
+
   return { where: cond.length ? `WHERE ${cond.join(' AND ')}` : '', valores };
 }
 
 export const canalRepository = {
-  /** Lista canales con relaciones (filtros opcionales). */
-  async listar(filtro: FiltroCanales = {}): Promise<FilaCanalDetalle[]> {
-    const { where, valores } = construirCondiciones(filtro);
+  /** Lista canales visibles para el usuario (con relaciones). */
+  async listar(
+    filtro: FiltroCanales = {},
+    usuario?: UsuarioAlcance | null
+  ): Promise<FilaCanalDetalle[]> {
+    const { where, valores } = construirCondiciones(filtro, usuario);
     const r = await query<FilaCanalDetalle>(
       `SELECT ${SELECT_CANAL} ${FROM_CANAL} ${where} ORDER BY c.nombre ASC`,
       valores
@@ -65,16 +79,23 @@ export const canalRepository = {
     return r.rows;
   },
 
-  /** Canal por id (detalle completo). */
-  async buscarPorId(id: string): Promise<FilaCanalDetalle | null> {
+  /** Canal por id (detalle completo), solo si es visible para el usuario. */
+  async buscarPorId(
+    id: string,
+    usuario?: UsuarioAlcance | null
+  ): Promise<FilaCanalDetalle | null> {
+    const alcance = usuario ? condicionVisibilidadHeredada('d', 2, usuario) : null;
+    const where = alcance ? `AND ${alcance.sql}` : '';
+    const valores = alcance ? [id, alcance.valor] : [id];
+
     const r = await query<FilaCanalDetalle>(
-      `SELECT ${SELECT_CANAL} ${FROM_CANAL} WHERE c.id = $1 LIMIT 1`,
-      [id]
+      `SELECT ${SELECT_CANAL} ${FROM_CANAL} WHERE c.id = $1 ${where} LIMIT 1`,
+      valores
     );
     return r.rows[0] ?? null;
   },
 
-  /** Canal por codigo. */
+  /** Canal por codigo. Sin filtro: uso de integraciones (IoT). */
   async buscarPorCodigo(codigo: string): Promise<FilaCanalDetalle | null> {
     const r = await query<FilaCanalDetalle>(
       `SELECT ${SELECT_CANAL} ${FROM_CANAL} WHERE c.codigo = $1 LIMIT 1`,
@@ -105,8 +126,12 @@ export const canalRepository = {
     return fila as FilaCanalDetalle;
   },
 
-  /** Actualiza canal. */
-  async actualizar(id: string, datos: ActualizarCanalInput): Promise<FilaCanalDetalle | null> {
+  /** Actualiza canal, solo si el usuario tiene acceso (heredado del dispositivo). */
+  async actualizar(
+    id: string,
+    datos: ActualizarCanalInput,
+    usuario?: UsuarioAlcance | null
+  ): Promise<FilaCanalDetalle | null> {
     const sets: string[] = [];
     const valores: unknown[] = [];
     let i = 1;
@@ -128,21 +153,39 @@ export const canalRepository = {
     }
     sets.push(`actualizado_en = NOW()`);
 
-    if (Object.keys(datos).length === 0) return this.buscarPorId(id);
-    if (sets.length === 0) return this.buscarPorId(id);
+    if (Object.keys(datos).length === 0) return this.buscarPorId(id, usuario);
+    if (sets.length === 0) return this.buscarPorId(id, usuario);
 
+    // Aislamiento: se filtra por el dueño del dispositivo del canal.
+    const cond = condicionVisibilidadHeredada('prop', i + 1, usuario);
     valores.push(id);
+    const filtro = cond
+      ? `AND sensor_id IN (SELECT s2.id FROM sensores s2 JOIN dispositivos prop ON prop.id = s2.dispositivo_id WHERE ${cond.sql})`
+      : '';
+    if (cond) valores.push(cond.valor);
+
     const r = await query<{ id: string }>(
-      `UPDATE canales SET ${sets.join(', ')} WHERE id = $${i} RETURNING id`,
+      `UPDATE canales SET ${sets.join(', ')}
+       WHERE id = $${i} ${filtro}
+       RETURNING id`,
       valores
     );
     if (!r.rows[0]) return null;
     return (await this.buscarPorId(r.rows[0].id)) ?? null;
   },
 
-  /** Elimina canal. */
-  async eliminar(id: string): Promise<boolean> {
-    const r = await query<{ id: string }>('DELETE FROM canales WHERE id = $1 RETURNING id', [id]);
+  /** Elimina canal, solo si el usuario tiene acceso. */
+  async eliminar(id: string, usuario?: UsuarioAlcance | null): Promise<boolean> {
+    const cond = condicionVisibilidadHeredada('prop', 2, usuario);
+    const filtro = cond
+      ? `AND sensor_id IN (SELECT s2.id FROM sensores s2 JOIN dispositivos prop ON prop.id = s2.dispositivo_id WHERE ${cond.sql})`
+      : '';
+    const valores = cond ? [id, cond.valor] : [id];
+
+    const r = await query<{ id: string }>(
+      `DELETE FROM canales WHERE id = $1 ${filtro} RETURNING id`,
+      valores
+    );
     return (r.rowCount ?? 0) > 0;
   },
 };

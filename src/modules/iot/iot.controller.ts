@@ -1,7 +1,11 @@
 import type { NextFunction, Request, Response } from 'express';
 import { responderExito } from '../../utils/api-response.js';
 import { ApiError } from '../../utils/api-error.js';
-import { comandoIntegracionSchema, ingestaMedicionesSchema } from './iot.schema.js';
+import {
+  comandoIntegracionSchema,
+  estadoDispositivoSchema,
+  ingestaMedicionesSchema,
+} from './iot.schema.js';
 import { iotService } from './iot.service.js';
 
 /**
@@ -45,6 +49,35 @@ export const iotController = {
         claveApiId: req.claveApi.claveApiId,
       });
       responderExito(res, comando, 201, 'Comando registrado correctamente');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/v1/iot/dispositivos/:identificador/estado
+   * Requiere permiso estado:actualizar.
+   *
+   * Heartbeat: el equipo reporta su estado real (online/offline/error…), su IP
+   * y metadatos libres (firmware, RSSI, uptime…). Actualiza el dispositivo para
+   * que la web muestre información real.
+   */
+  async estadoDispositivo(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // Express 5 tipa los params como string | string[]; normalizamos.
+      const identificador = Array.isArray(req.params.identificador)
+        ? req.params.identificador[0]
+        : req.params.identificador;
+      if (!identificador) {
+        next(ApiError.badRequest('El identificador del dispositivo es obligatorio'));
+        return;
+      }
+      const entrada = estadoDispositivoSchema.parse(req.body);
+      const { actual } = await iotService.actualizarEstadoDispositivo(
+        identificador,
+        entrada
+      );
+      responderExito(res, actual, 200, 'Estado del dispositivo actualizado');
     } catch (error) {
       next(error);
     }

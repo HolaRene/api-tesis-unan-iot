@@ -4,6 +4,10 @@ API REST genérica construida con **Node.js + TypeScript + Express 5** para sist
 
 El modelo es genérico y reutilizable en distintos dominios (ambiental, agrícola, industrial, edificios inteligentes, laboratorios, etc.). Está preparada para que **Node-RED** envíe mediciones vía HTTP/REST y para que una **plataforma web** consulte áreas, dispositivos, sensores, mediciones, alertas e integraciones.
 
+> 📘 **Modelo multivariable.** Un sensor puede exponer varias magnitudes
+> (canales): p. ej. un DHT22 aporta temperatura **y** humedad relativa. Ver
+> [`../docs/modelo-multivariable.md`](../docs/modelo-multivariable.md).
+
 ---
 
 ## Contenido
@@ -282,6 +286,22 @@ Campos: `codigo` (único), `nombre`, `descripcion`, `tipo_dato`, `unidad_default
 | `DELETE` | `/sensors/:id` | Elimina un sensor |
 
 Campos: `dispositivo_id`, `tipo_variable_id`, `nombre`, `codigo` (único), `fabricante`, `modelo`, `unidad`, `rango_min`, `rango_max`, `precision`, `activo`, `configuracion`.
+
+> **Canales automáticos (modelo multivariable).** Al crear un sensor se genera
+> automáticamente su **canal principal** en la tabla `canales`, heredando
+> `tipo_variable_id`, unidad, rango y precisión del sensor (el código del canal
+> es el código del sensor). Al editar el sensor se sincroniza ese canal.
+> La migración `0012_canales_backfill.sql` hace el mismo proceso para los
+> sensores que ya existían sin canal. Un canal adicional (más magnitudes del
+> mismo sensor) se puede crear aparte con `POST /canales`.
+
+> 📡 **Estado real de dispositivos.** La ingesta IoT (`POST /iot/mediciones`)
+> marca el dispositivo como `online` y actualiza `ultima_conexion`. Además,
+> `POST /iot/dispositivos/:identificador/estado` (permiso `estado:actualizar`)
+> permite al PLC/ESP32/Raspberry reportar estado, IP y metadatos (firmware,
+> RSSI…). Un watchdog marca `offline` los equipos sin contacto
+> (`DEVICE_OFFLINE_MINUTOS`). Ver
+> [`../docs/estado-dispositivos.md`](../docs/estado-dispositivos.md).
 
 ### Mediciones (ingesta para Node-RED)
 

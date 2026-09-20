@@ -59,7 +59,63 @@ async function sembrarUsuarioAdmin(): Promise<void> {
   }
 }
 
-sembrarUsuarioAdmin().catch((error) => {
-  console.error('[seed] Error al sembrar datos', error);
-  process.exit(1);
-});
+/**
+ * Siembra una cámara IP de ejemplo, SIN conexión real.
+ *
+ * Sirve para trabajar la interfaz antes de tener la cámara física:
+ *   - La IP es de ejemplo y NUNCA se contacta.
+ *   - El estado queda `desconectada` a propósito.
+ *   - No se guardan credenciales (el modelo no las admite).
+ */
+async function sembrarCamaraDePrueba(): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('No se encontró DATABASE_URL. Configúrelo en el archivo de entorno.');
+  }
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+  try {
+    // Se asigna al admin más antiguo (mismo criterio que las migraciones).
+    const admin = await pool.query<{ id: string }>(
+      `SELECT id FROM usuarios WHERE rol = 'admin' ORDER BY creado_en ASC LIMIT 1`
+    );
+
+    const resultado = await pool.query<{ id: string }>(
+      `INSERT INTO camaras
+         (nombre, descripcion, direccion_ip, puerto_rtsp, protocolo,
+          ruta_stream, ruta_webrtc, estado, activa, metadatos, propietario_id)
+       VALUES
+         ($1, $2, $3, $4, 'rtsp', $5, $6, 'desconectada', TRUE, $7::jsonb, $8)
+       ON CONFLICT (ruta_webrtc) WHERE ruta_webrtc IS NOT NULL DO NOTHING
+       RETURNING id`,
+      [
+        'Cámara Quirófano 1',
+        'Cámara de supervisión visual (ejemplo, sin conexión real).',
+        '192.168.1.50',
+        554,
+        '/stream1',
+        '/camara-qui-1',
+        JSON.stringify({
+          ejemplo: true,
+          nota: 'Configuración de ejemplo; no se contacta ninguna IP real.',
+        }),
+        admin.rows[0]?.id ?? null,
+      ]
+    );
+
+    if (resultado.rows.length > 0) {
+      console.log('[seed] Cámara de prueba creada: Cámara Quirófano 1 (/camara-qui-1)');
+    } else {
+      console.log('[seed] La cámara de prueba ya existía (/camara-qui-1)');
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+sembrarUsuarioAdmin()
+  .then(() => sembrarCamaraDePrueba())
+  .catch((error) => {
+    console.error('[seed] Error al sembrar datos', error);
+    process.exit(1);
+  });

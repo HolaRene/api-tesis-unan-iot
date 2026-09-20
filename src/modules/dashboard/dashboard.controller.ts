@@ -7,9 +7,9 @@ import { dashboardService } from './dashboard.service.js';
  */
 export const dashboardController = {
   /** GET /api/v1/dashboard/resumen */
-  async resumen(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async resumen(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const resultado = await dashboardService.obtenerResumen();
+      const resultado = await dashboardService.obtenerResumen(10, 10, req.usuario);
       responderExito(res, resultado, 200, 'Resumen obtenido correctamente');
     } catch (error) {
       next(error);

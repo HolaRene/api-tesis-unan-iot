@@ -14,6 +14,7 @@ router.use(middlewareAuth);
 router.get('/', sensorController.listar);
 router.get('/:id', sensorController.obtenerPorId);
 router.get('/:id/mediciones', sensorController.historialMediciones);
+router.get('/:id/canales', sensorController.listarCanales);
 router.post('/', requiereRol('usuario', 'admin'), sensorController.crear);
 router.patch('/:id', requiereRol('usuario', 'admin'), sensorController.actualizar);
 router.delete('/:id', requiereRol('usuario', 'admin'), sensorController.eliminar);

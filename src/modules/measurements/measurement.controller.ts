@@ -18,16 +18,20 @@ export const measurementController = {
   async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filtro = listarMedicionesSchema.parse(req.query);
-      const registros = await measurementService.listar({
-        sensor_id: filtro.sensor_id,
-        dispositivo_id: filtro.dispositivo_id,
-        area_id: filtro.area_id,
-        tipo_variable_id: filtro.tipo_variable_id,
-        desde: filtro.desde,
-        hasta: filtro.hasta,
-        limite: filtro.limite,
-        orden_ascendente: filtro.orden === 'asc',
-      });
+      const registros = await measurementService.listar(
+        {
+          sensor_id: filtro.sensor_id,
+          canal_id: filtro.canal_id,
+          dispositivo_id: filtro.dispositivo_id,
+          area_id: filtro.area_id,
+          tipo_variable_id: filtro.tipo_variable_id,
+          desde: filtro.desde,
+          hasta: filtro.hasta,
+          limite: filtro.limite,
+          orden_ascendente: filtro.orden === 'asc',
+        },
+        req.usuario
+      );
       responderExito(res, registros, 200);
     } catch (error) {
       next(error);
@@ -40,7 +44,7 @@ export const measurementController = {
   async obtenerPorId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idMedicionSchema.parse(req.params);
-      const registro = await measurementService.obtenerPorId(id);
+      const registro = await measurementService.obtenerPorId(id, req.usuario);
       responderExito(res, registro, 200);
     } catch (error) {
       next(error);

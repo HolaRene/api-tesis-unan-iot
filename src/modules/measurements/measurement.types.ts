@@ -39,6 +39,7 @@ export interface CrearMeasurementInput {
 /** Parámetros de consulta para listar mediciones (global). */
 export interface FiltrarMediciones {
   sensor_id?: string;
+  canal_id?: string;
   dispositivo_id?: string;
   area_id?: string;
   tipo_variable_id?: string;

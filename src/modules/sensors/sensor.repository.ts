@@ -4,6 +4,11 @@ import type {
   ActualizarSensorInput,
   CrearSensorInput,
 } from './sensor.types.js';
+import {
+  condicionPropiedadHeredada,
+  condicionVisibilidadHeredada,
+  type UsuarioAlcance,
+} from '../../utils/alcance.js';
 
 /** Filtros opcionales del listado. */
 export interface FiltroListarSensor {
@@ -49,7 +54,10 @@ const FROM_DETALLE = `
   ) cmn ON true
 `;
 
-function construirCondiciones(filtro: FiltroListarSensor) {
+function construirCondiciones(
+  filtro: FiltroListarSensor,
+  usuario?: UsuarioAlcance | null
+) {
   const condiciones: string[] = [];
   const params: unknown[] = [];
   if (filtro.area_id) { params.push(filtro.area_id); condiciones.push(`d.area_id = $${params.length}`); }
@@ -57,31 +65,51 @@ function construirCondiciones(filtro: FiltroListarSensor) {
   if (filtro.tipo_variable_id) { params.push(filtro.tipo_variable_id); condiciones.push(`s.tipo_variable_id = $${params.length}`); }
   if (filtro.activo !== undefined) { params.push(filtro.activo); condiciones.push(`s.activo = $${params.length}`); }
   if (filtro.buscar) { params.push(`%${filtro.buscar}%`); condiciones.push(`(s.nombre ILIKE $${params.length} OR s.codigo ILIKE $${params.length})`); }
+
+  // Aislamiento: el sensor hereda la propiedad de su dispositivo.
+  const cond = condicionVisibilidadHeredada('d', params.length + 1, usuario);
+  if (cond) { params.push(cond.valor); condiciones.push(cond.sql); }
+
   return { where: condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '', params };
 }
 
 /**
  * Repositorio de sensores. Contiene únicamente consultas SQL.
+ *
+ * AISLAMIENTO: el sensor hereda la propiedad de su dispositivo (`d.propietario_id`).
  */
 export const sensorRepository = {
-  /** Lista sensores con relaciones y última medición (filtros opcionales). */
-  async listar(filtro: FiltroListarSensor = {}): Promise<SensorConNombres[]> {
-    const { where, params } = construirCondiciones(filtro);
+  /** Lista sensores visibles para el usuario (con relaciones y última medición). */
+  async listar(
+    filtro: FiltroListarSensor = {},
+    usuario?: UsuarioAlcance | null
+  ): Promise<SensorConNombres[]> {
+    const { where, params } = construirCondiciones(filtro, usuario);
     const sql = `SELECT ${SQL_DETALLE} ${FROM_DETALLE} ${where} ORDER BY s.creado_en DESC`;
     const r = await query<SensorConNombres>(sql, params);
     return r.rows;
   },
 
-  /** Busca un sensor por id (con relaciones y última medición). */
-  async buscarPorId(id: string): Promise<SensorConNombres | null> {
+  /**
+   * Busca un sensor por id, solo si es visible para el usuario.
+   * Sin `usuario` (o con `null`) no filtra: uso interno (IoT, servicios).
+   */
+  async buscarPorId(
+    id: string,
+    usuario?: UsuarioAlcance | null
+  ): Promise<SensorConNombres | null> {
+    const cond = usuario ? condicionVisibilidadHeredada('d', 2, usuario) : null;
+    const where = cond ? `AND ${cond.sql}` : '';
+    const valores = cond ? [id, cond.valor] : [id];
+
     const r = await query<SensorConNombres>(
-      `SELECT ${SQL_DETALLE} ${FROM_DETALLE} WHERE s.id = $1 LIMIT 1`,
-      [id]
+      `SELECT ${SQL_DETALLE} ${FROM_DETALLE} WHERE s.id = $1 ${where} LIMIT 1`,
+      valores
     );
     return r.rows[0] ?? null;
   },
 
-  /** Busca un sensor por código (columna única). */
+  /** Busca un sensor por código (columna única). Sin filtro: uso de integraciones. */
   async buscarPorCodigo(codigo: string): Promise<SensorConNombres | null> {
     const r = await query<SensorConNombres>(
       `SELECT ${SQL_DETALLE} ${FROM_DETALLE} WHERE s.codigo = $1 LIMIT 1`,
@@ -119,7 +147,15 @@ export const sensorRepository = {
   },
 
   /** Actualiza un sensor y lo devuelve con detalles. */
-  async actualizar(id: string, datos: ActualizarSensorInput): Promise<SensorConNombres | null> {
+  /**
+   * Actualiza un sensor. Solo si el usuario tiene acceso al sensor (heredado
+   * de su dispositivo). Sin `usuario` no filtra (uso interno).
+   */
+  async actualizar(
+    id: string,
+    datos: ActualizarSensorInput,
+    usuario?: UsuarioAlcance | null
+  ): Promise<SensorConNombres | null> {
     const sets: string[] = [];
     const valores: unknown[] = [];
     let indice = 1;
@@ -143,22 +179,41 @@ export const sensorRepository = {
       agregar('configuracion', JSON.stringify(datos.configuracion));
     }
 
-    if (sets.length === 0) return this.buscarPorId(id);
+    if (sets.length === 0) return this.buscarPorId(id, usuario);
 
+    // Aislamiento: el sensor hereda la propiedad de su dispositivo. El UPDATE
+    // no admite JOIN, así que se filtra con una subconsulta al dispositivo.
+    const cond = condicionPropiedadHeredada('prop', indice + 1, usuario);
     valores.push(id);
+    const filtro = cond
+      ? `AND dispositivo_id IN (SELECT id FROM dispositivos prop WHERE ${cond.sql})`
+      : '';
+    if (cond) valores.push(cond.valor);
+
     const actualizado = await query<{ id: string }>(
-      `UPDATE sensores SET ${sets.join(', ')} WHERE id = $${indice} RETURNING id`,
+      `UPDATE sensores SET ${sets.join(', ')}
+       WHERE id = $${indice} ${filtro}
+       RETURNING id`,
       valores
     );
     if (!actualizado.rows[0]) return null;
     return (await this.buscarPorId(actualizado.rows[0].id)) ?? null;
   },
 
-  /** Elimina un sensor. */
-  async eliminar(id: string): Promise<boolean> {
+  /**
+   * Elimina un sensor, solo si el usuario tiene acceso (heredado del
+   * dispositivo). Sin `usuario` no filtra (uso interno).
+   */
+  async eliminar(id: string, usuario?: UsuarioAlcance | null): Promise<boolean> {
+    const cond = condicionPropiedadHeredada('prop', 2, usuario);
+    const filtro = cond
+      ? `AND dispositivo_id IN (SELECT id FROM dispositivos prop WHERE ${cond.sql})`
+      : '';
+    const valores = cond ? [id, cond.valor] : [id];
+
     const r = await query<{ id: string }>(
-      'DELETE FROM sensores WHERE id = $1 RETURNING id',
-      [id]
+      `DELETE FROM sensores WHERE id = $1 ${filtro} RETURNING id`,
+      valores
     );
     return (r.rowCount ?? 0) > 0;
   },

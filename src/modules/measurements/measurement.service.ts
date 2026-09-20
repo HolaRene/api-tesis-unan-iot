@@ -8,6 +8,9 @@ import type {
 import { measurementRepository } from './measurement.repository.js';
 import { alertRepository } from '../alerts/alert.repository.js';
 import { alertService } from '../alerts/alert.service.js';
+import { sensorRepository } from '../sensors/sensor.repository.js';
+import { canalRepository } from '../canales/canal.repository.js';
+import type { UsuarioAlcance } from '../../utils/alcance.js';
 
 /** Estructura de un umbral activo obtenido para la evaluación. */
 interface UmbralActivo {
@@ -19,40 +22,59 @@ interface UmbralActivo {
 
 /**
  * Lógica de negocio del módulo de mediciones.
+ *
+ * AISLAMIENTO: la medición hereda la propiedad del dispositivo de su canal.
+ * Las operaciones de la API reciben el usuario; las de IoT no.
  */
 export const measurementService = {
-  /**
-   * Lista mediciones con filtros opcionales.
-   */
-  async listar(filtro: FiltrarMediciones): Promise<Measurement[]> {
-    return measurementRepository.listar(filtro);
+  /** Lista mediciones visibles para el usuario (filtros opcionales). */
+  async listar(
+    filtro: FiltrarMediciones,
+    usuario?: UsuarioAlcance | null
+  ): Promise<Measurement[]> {
+    return measurementRepository.listar(filtro, usuario);
   },
 
   /**
    * Devuelve el historial de un sensor (orden ascendente para gráfica).
+   * Si se pasa `usuario`, solo si el sensor es visible.
    */
   async listarHistorialSensor(
     sensorId: string,
-    filtro: { desde?: string; hasta?: string; limite?: number }
+    filtro: { desde?: string; hasta?: string; limite?: number },
+    usuario?: UsuarioAlcance | null
   ): Promise<Measurement[]> {
+    if (usuario) {
+      const sensor = await sensorRepository.buscarPorId(sensorId, usuario);
+      if (!sensor) throw ApiError.notFound('Sensor no encontrado');
+    }
     return measurementRepository.listarHistorialSensor(sensorId, filtro);
   },
 
   /**
    * Devuelve el historial de un canal (orden ascendente para gráfica).
+   * Si se pasa `usuario`, solo si el canal es visible.
    */
   async listarCanalPorId(
     canalId: string,
-    filtro: { desde?: string; hasta?: string; limite?: number }
+    filtro: { desde?: string; hasta?: string; limite?: number },
+    usuario?: UsuarioAlcance | null
   ): Promise<Measurement[]> {
+    if (usuario) {
+      const canal = await canalRepository.buscarPorId(canalId, usuario);
+      if (!canal) throw ApiError.notFound('Canal no encontrado');
+    }
     return measurementRepository.listarHistorialCanal(canalId, filtro);
   },
 
   /**
-   * Obtiene una medición por id.
+   * Obtiene una medición por id (solo si es visible para el usuario).
    */
-  async obtenerPorId(id: number): Promise<Measurement> {
-    const medicion = await measurementRepository.buscarPorId(id);
+  async obtenerPorId(
+    id: number,
+    usuario?: UsuarioAlcance | null
+  ): Promise<Measurement> {
+    const medicion = await measurementRepository.buscarPorId(id, usuario);
     if (!medicion) {
       throw ApiError.notFound('Medición no encontrada');
     }

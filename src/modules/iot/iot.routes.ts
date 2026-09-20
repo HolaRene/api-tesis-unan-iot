@@ -28,4 +28,11 @@ router.post(
   iotController.comandoActuador
 );
 
+// Heartbeat/estado del dispositivo (PLC, ESP32, Raspberry…) por código lógico
+router.post(
+  '/dispositivos/:identificador/estado',
+  verificarPermisosApi('estado:actualizar'),
+  iotController.estadoDispositivo
+);
+
 export default router;

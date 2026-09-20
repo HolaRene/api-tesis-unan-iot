@@ -8,16 +8,22 @@ import type {
 import { alertRepository } from './alert.repository.js';
 import { reglaRepository } from '../reglas-alerta/regla-alerta.repository.js';
 import type { Measurement } from '../measurements/measurement.types.js';
+import {
+  emitirAlertaCreada,
+  emitirAlertaResuelta,
+  emitirCambioDeAlerta,
+} from '../../realtime/alertas.eventos.js';
+import type { UsuarioAlcance } from '../../utils/alcance.js';
 
 /**
  * Lógica de negocio del módulo de alertas.
  */
 export const alertService = {
   /**
-   * Lista todas las alertas.
+   * Lista las alertas visibles para el usuario.
    */
-  async listar(): Promise<Alert[]> {
-    return alertRepository.listar();
+  async listar(usuario?: UsuarioAlcance | null): Promise<Alert[]> {
+    return alertRepository.listar(usuario);
   },
 
   /**
@@ -33,14 +39,22 @@ export const alertService = {
 
   /**
    * Crea una alerta. Valida sensor y medición si se proporcionan.
+   * Emite `alerta:creada` tras el COMMIT.
    */
   async crear(entrada: CrearAlertInput): Promise<Alert> {
     await this.validarExistencias(entrada.sensor_id, entrada.medicion_id);
-    return alertRepository.crear(entrada);
+    const alerta = await alertRepository.crear(entrada);
+    emitirAlertaCreada(alerta);
+    return alerta;
   },
 
   /**
    * Actualiza una alerta por id.
+   *
+   * Emite un único evento coherente con el nuevo estado:
+   *   - `alerta:resuelta` si pasa a `resolved` (no se emite además
+   *     `alerta:actualizada`, para no duplicar).
+   *   - `alerta:actualizada` en cualquier otro caso (reconocida, severidad…).
    */
   async actualizar(id: string, entrada: ActualizarAlertInput): Promise<Alert> {
     await this.validarExistencias(entrada.sensor_id, entrada.medicion_id);
@@ -48,6 +62,7 @@ export const alertService = {
     if (!actualizada) {
       throw ApiError.notFound('Alerta no encontrada');
     }
+    emitirCambioDeAlerta(actualizada);
     return actualizada;
   },
 
@@ -97,7 +112,8 @@ export const alertService = {
         const activa = await alertRepository.buscarActivaPorRegla(regla.id);
         if (!activa) {
           const valor = valorDisparador(regla, medicion);
-          await alertRepository.crearDesdeRegla({
+          // La alerta ya está persistida (COMMIT): se emite ahora.
+          const creada = await alertRepository.crearDesdeRegla({
             regla_id: regla.id,
             canal_id: medicion.canal_id,
             medicion_id: medicion.id,
@@ -105,9 +121,17 @@ export const alertService = {
             mensaje: regla.mensaje || `Regla '${regla.nombre}' cumplida`,
             ...valor,
           });
+          emitirAlertaCreada(creada);
         }
+        // Ya había una alerta activa para la regla: NO se duplica el evento.
       } else {
-        await alertRepository.resolverPorRegla(regla.id);
+        // Al dejar de cumplirse, se resuelven las activas de esa regla.
+        // `resolverPorRegla` devuelve solo las que realmente cambiaron, así que
+        // reejecutar sin cambios no emite nada.
+        const resueltas = await alertRepository.resolverPorRegla(regla.id);
+        for (const resuelta of resueltas) {
+          emitirAlertaResuelta(resuelta);
+        }
       }
     }
   },
@@ -121,7 +145,22 @@ export const alertService = {
       reconocida_en: new Date(),
       reconocida_por: usuarioId,
     });
-    return actualizada ?? alerta;
+    const resultado = actualizada ?? alerta;
+    emitirCambioDeAlerta(resultado);
+    return resultado;
+  },
+
+  /** PATCH /alerts/:id/resolver (pasa a `resolved` y se emite `alerta:resuelta`). */
+  async resolver(id: string): Promise<Alert> {
+    const alerta = await alertRepository.buscarPorId(id);
+    if (!alerta) throw ApiError.notFound('Alerta no encontrada');
+    const actualizada = await alertRepository.actualizar(id, {
+      estado: 'resolved',
+      finalizada_en: new Date(),
+    });
+    const resultado = actualizada ?? alerta;
+    emitirAlertaResuelta(resultado);
+    return resultado;
   },
 };
 

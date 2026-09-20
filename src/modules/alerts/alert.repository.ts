@@ -4,6 +4,7 @@ import type {
   Alert,
   CrearAlertInput,
 } from './alert.types.js';
+import { esAlcanceTotal, type UsuarioAlcance } from '../../utils/alcance.js';
 
 /** Columnas devueltas en las consultas que mapean a una Alerta. */
 const CAMPOS_ALERTA = `
@@ -16,11 +17,23 @@ const CAMPOS_ALERTA = `
  */
 export const alertRepository = {
   /**
-   * Lista todas las alertas.
+   * Lista las alertas visibles para el usuario.
+   *
+   * La alerta hereda la propiedad del dispositivo de su canal/sensor.
    */
-  async listar(): Promise<Alert[]> {
+  async listar(usuario?: UsuarioAlcance | null): Promise<Alert[]> {
+    const total = esAlcanceTotal(usuario);
     const resultado = await query<Alert>(
-      `SELECT ${CAMPOS_ALERTA} FROM alertas ORDER BY iniciada_en DESC`
+      `SELECT al.id, al.sensor_id, al.canal_id, al.regla_id, al.medicion_id,
+              al.tipo, al.severidad, al.mensaje, al.estado, al.iniciada_en,
+              al.reconocida_en, al.reconocida_por, al.finalizada_en, al.metadatos
+       FROM alertas al
+       LEFT JOIN canales c ON c.id = al.canal_id
+       LEFT JOIN sensores s ON s.id = COALESCE(al.sensor_id, c.sensor_id)
+       LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
+       ${total ? '' : 'WHERE (d.propietario_id = $1 OR d.propietario_id IS NULL)'}
+       ORDER BY al.iniciada_en DESC`,
+      total ? [] : [usuario?.id ?? null]
     );
     return resultado.rows;
   },
@@ -99,13 +112,21 @@ export const alertRepository = {
     return r.rows[0] ?? null;
   },
 
-  /** Marca como resuelta la alerta activa de una regla. */
-  async resolverPorRegla(reglaId: string): Promise<void> {
-    await query(
+  /**
+   * Marca como resueltas las alertas activas/reconocidas de una regla.
+   *
+   * Devuelve las alertas afectadas (ya resueltas) para que el service pueda
+   * emitir `alerta:resuelta` después del COMMIT, sin una consulta extra.
+   * Si no había ninguna activa, devuelve un array vacío (no se emite nada).
+   */
+  async resolverPorRegla(reglaId: string): Promise<Alert[]> {
+    const r = await query<Alert>(
       `UPDATE alertas SET estado = 'resolved', finalizada_en = NOW()
-       WHERE regla_id = $1 AND estado IN ('active','acknowledged')`,
+       WHERE regla_id = $1 AND estado IN ('active','acknowledged')
+       RETURNING ${CAMPOS_ALERTA}`,
       [reglaId]
     );
+    return r.rows;
   },
 
   async actualizar(id: string, datos: ActualizarAlertInput): Promise<Alert | null> {

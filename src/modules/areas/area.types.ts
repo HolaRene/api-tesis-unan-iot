@@ -13,6 +13,8 @@ export interface Area {
   descripcion: string | null;
   ubicacion: string | null;
   activo: boolean;
+  /** Dueño del recurso. `null` = global (visible por todos, editable por admin). */
+  propietario_id?: string | null;
   creado_en: Date;
 }
 
@@ -23,6 +25,8 @@ export interface CrearAreaInput {
   descripcion?: string | null;
   ubicacion?: string | null;
   activo?: boolean;
+  /** Lo asigna el servicio desde el usuario autenticado. */
+  propietario_id?: string | null;
 }
 
 /** Campos actualizables de un área. */

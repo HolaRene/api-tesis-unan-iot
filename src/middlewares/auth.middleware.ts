@@ -1,8 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import { env } from '../config/env.js';
 import { ApiError } from '../utils/api-error.js';
-import type { UsuarioAutenticado } from '../modules/users/user.types.js';
+import { verificarToken } from '../utils/jwt.js';
 
 /**
  * Middleware de autenticación JWT.
@@ -28,7 +26,7 @@ export function middlewareAuth(
   }
 
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as UsuarioAutenticado;
+    const payload = verificarToken(token);
     req.usuario = payload;
     next();
   } catch {

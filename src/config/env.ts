@@ -72,6 +72,12 @@ const envSchema = z.object({
   // Límite de solicitudes por ventana de tiempo (rate limit)
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+
+  // --- Monitorización del estado de dispositivos ---
+  // Minutos sin recibir datos tras los cuales un dispositivo pasa a 'offline'.
+  DEVICE_OFFLINE_MINUTOS: z.coerce.number().int().positive().default(5),
+  // Intervalo (segundos) del job que revisa dispositivos caídos. 0 = desactivado.
+  DEVICE_WATCHDOG_INTERVALO_SEG: z.coerce.number().int().nonnegative().default(60),
 });
 
 /**

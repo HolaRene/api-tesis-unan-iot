@@ -15,9 +15,9 @@ export const alertController = {
   /**
    * GET /api/v1/alerts
    */
-  async listar(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const registros = await alertService.listar();
+      const registros = await alertService.listar(req.usuario);
       responderExito(res, registros, 200);
     } catch (error) {
       next(error);
@@ -73,6 +73,20 @@ export const alertController = {
       const usuarioActual = (req as { usuario?: { id: string } }).usuario;
       const registro = await alertService.reconocer(id, usuarioActual?.id);
       responderExito(res, registro, 200, 'Alerta reconocida');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * PATCH /api/v1/alerts/:id/resolver
+   * Pasa la alerta a `resolved` y emite `alerta:resuelta`.
+   */
+  async resolver(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = idAlertSchema.parse(req.params);
+      const registro = await alertService.resolver(id);
+      responderExito(res, registro, 200, 'Alerta resuelta');
     } catch (error) {
       next(error);
     }

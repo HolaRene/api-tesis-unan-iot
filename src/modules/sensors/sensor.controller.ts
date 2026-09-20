@@ -6,6 +6,7 @@ import {
   idSensorSchema,
 } from './sensor.schema.js';
 import { sensorService } from './sensor.service.js';
+import { canalService } from '../canales/canal.service.js';
 import { measurementService } from '../measurements/measurement.service.js';
 
 /**
@@ -21,13 +22,16 @@ export const sensorController = {
   async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q = req.query as Record<string, string | undefined>;
-      const registros = await sensorService.listar({
-        area_id: q.area_id,
-        dispositivo_id: q.dispositivo_id,
-        tipo_variable_id: q.tipo_variable_id,
-        activo: q.activo === 'true' ? true : q.activo === 'false' ? false : undefined,
-        buscar: q.buscar,
-      });
+      const registros = await sensorService.listar(
+        {
+          area_id: q.area_id,
+          dispositivo_id: q.dispositivo_id,
+          tipo_variable_id: q.tipo_variable_id,
+          activo: q.activo === 'true' ? true : q.activo === 'false' ? false : undefined,
+          buscar: q.buscar,
+        },
+        req.usuario
+      );
       responderExito(res, registros, 200);
     } catch (error) {
       next(error);
@@ -40,7 +44,7 @@ export const sensorController = {
   async obtenerPorId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idSensorSchema.parse(req.params);
-      const registro = await sensorService.obtenerPorId(id);
+      const registro = await sensorService.obtenerPorId(id, req.usuario);
       responderExito(res, registro, 200);
     } catch (error) {
       next(error);
@@ -53,7 +57,7 @@ export const sensorController = {
   async crear(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const entrada = crearSensorSchema.parse(req.body);
-      const registro = await sensorService.crear(entrada);
+      const registro = await sensorService.crear(entrada, req.usuario);
       responderExito(res, registro, 201, 'Sensor creado correctamente');
     } catch (error) {
       next(error);
@@ -67,7 +71,7 @@ export const sensorController = {
     try {
       const { id } = idSensorSchema.parse(req.params);
       const entrada = actualizarSensorSchema.parse(req.body);
-      const registro = await sensorService.actualizar(id, entrada);
+      const registro = await sensorService.actualizar(id, entrada, req.usuario);
       responderExito(res, registro, 200, 'Sensor actualizado correctamente');
     } catch (error) {
       next(error);
@@ -80,7 +84,7 @@ export const sensorController = {
   async eliminar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idSensorSchema.parse(req.params);
-      await sensorService.eliminar(id);
+      await sensorService.eliminar(id, req.usuario);
       responderExito(res, null, 200, 'Sensor eliminado correctamente');
     } catch (error) {
       next(error);
@@ -102,6 +106,21 @@ export const sensorController = {
         limite: q.limite ? Number(q.limite) : undefined,
       });
       responderExito(res, { sensor_id: id, mediciones }, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/sensors/:id/canales
+   * Magnitudes (canales) que expone un sensor. Ej. un DHT22 devuelve dos.
+   */
+  async listarCanales(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = idSensorSchema.parse(req.params);
+      await sensorService.obtenerPorId(id); // 404 si no existe
+      const canales = await canalService.listar({ sensor_id: id });
+      responderExito(res, { sensor_id: id, canales }, 200);
     } catch (error) {
       next(error);
     }

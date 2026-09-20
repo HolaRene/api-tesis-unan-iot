@@ -19,6 +19,8 @@ export interface Device {
   estado: string;
   metadatos: Record<string, unknown> | null;
   ultima_conexion: Date | null;
+  /** Dueño del recurso. `null` = global (visible por todos, editable por admin). */
+  propietario_id?: string | null;
   creado_en: Date;
 }
 
@@ -34,6 +36,8 @@ export interface CrearDeviceInput {
   direccion_ip?: string | null;
   estado?: string;
   metadatos?: Record<string, unknown>;
+  /** Lo asigna el servicio desde el usuario autenticado. */
+  propietario_id?: string | null;
 }
 
 /** Campos actualizables de un dispositivo. */

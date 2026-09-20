@@ -14,10 +14,11 @@ import { areaService } from './area.service.js';
 export const areaController = {
   /**
    * GET /api/v1/areas
+   * Devuelve solo las áreas visibles para el usuario autenticado.
    */
-  async listar(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const registros = await areaService.listar();
+      const registros = await areaService.listar(req.usuario);
       responderExito(res, registros, 200);
     } catch (error) {
       next(error);
@@ -30,7 +31,7 @@ export const areaController = {
   async obtenerPorId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idAreaSchema.parse(req.params);
-      const area = await areaService.obtenerPorId(id);
+      const area = await areaService.obtenerPorId(id, req.usuario);
       responderExito(res, area, 200);
     } catch (error) {
       next(error);
@@ -43,7 +44,7 @@ export const areaController = {
   async crear(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const entrada = crearAreaSchema.parse(req.body);
-      const registro = await areaService.crear(entrada);
+      const registro = await areaService.crear(entrada, req.usuario);
       responderExito(res, registro, 201, 'Área creada correctamente');
     } catch (error) {
       next(error);
@@ -57,7 +58,7 @@ export const areaController = {
     try {
       const { id } = idAreaSchema.parse(req.params);
       const entrada = actualizarAreaSchema.parse(req.body);
-      const registro = await areaService.actualizar(id, entrada);
+      const registro = await areaService.actualizar(id, entrada, req.usuario);
       responderExito(res, registro, 200, 'Área actualizada correctamente');
     } catch (error) {
       next(error);
@@ -70,7 +71,7 @@ export const areaController = {
   async eliminar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idAreaSchema.parse(req.params);
-      await areaService.eliminar(id);
+      await areaService.eliminar(id, req.usuario);
       responderExito(res, null, 200, 'Área eliminada correctamente');
     } catch (error) {
       next(error);

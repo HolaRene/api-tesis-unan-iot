@@ -12,14 +12,17 @@ export const canalController = {
   async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q = req.query as Record<string, string | undefined>;
-      const filas = await canalService.listar({
-        sensor_id: q.sensor_id,
-        dispositivo_id: q.dispositivo_id,
-        area_id: q.area_id,
-        tipo_variable_id: q.tipo_variable_id,
-        activo: q.activo === 'true' ? true : undefined,
-        buscar: q.buscar,
-      });
+      const filas = await canalService.listar(
+        {
+          sensor_id: q.sensor_id,
+          dispositivo_id: q.dispositivo_id,
+          area_id: q.area_id,
+          tipo_variable_id: q.tipo_variable_id,
+          activo: q.activo === 'true' ? true : undefined,
+          buscar: q.buscar,
+        },
+        req.usuario
+      );
       responderExito(res, filas, 200);
     } catch (e) { next(e); }
   },
@@ -27,7 +30,7 @@ export const canalController = {
   async obtenerPorId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idCanalSchema.parse(req.params);
-      const fila = await canalService.obtenerPorId(id);
+      const fila = await canalService.obtenerPorId(id, req.usuario);
       responderExito(res, fila, 200);
     } catch (e) { next(e); }
   },
@@ -36,10 +39,14 @@ export const canalController = {
     try {
       const { id } = idCanalSchema.parse(req.params);
       const q = req.query as Record<string, string | undefined>;
-      const mediciones = await canalService.historialMediciones(id, {
-        desde: q.desde, hasta: q.hasta,
-        limite: q.limite ? Number(q.limite) : undefined,
-      });
+      const mediciones = await canalService.historialMediciones(
+        id,
+        {
+          desde: q.desde, hasta: q.hasta,
+          limite: q.limite ? Number(q.limite) : undefined,
+        },
+        req.usuario
+      );
       responderExito(res, { canal_id: id, mediciones }, 200);
     } catch (e) { next(e); }
   },
@@ -56,7 +63,7 @@ export const canalController = {
     try {
       const { id } = idCanalSchema.parse(req.params);
       const data = actualizarCanalSchema.parse(req.body);
-      const fila = await canalService.actualizar(id, data);
+      const fila = await canalService.actualizar(id, data, req.usuario);
       responderExito(res, fila, 200, 'Canal actualizado correctamente');
     } catch (e) { next(e); }
   },
@@ -64,7 +71,7 @@ export const canalController = {
   async eliminar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idCanalSchema.parse(req.params);
-      await canalService.eliminar(id);
+      await canalService.eliminar(id, req.usuario);
       responderExito(res, null, 200, 'Canal eliminado correctamente');
     } catch (e) { next(e); }
   },
