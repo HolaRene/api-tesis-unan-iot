@@ -81,19 +81,24 @@ describe('resumen de series agregadas', () => {
 });
 
 describe('intervalos de agregación', () => {
-  test('la lista blanca contiene los 4 intervalos soportados', () => {
-    assert.deepEqual([...INTERVALOS_AGREGACION], ['hora', 'dia', 'semana', 'mes']);
+  test('la lista blanca contiene los 5 intervalos soportados', () => {
+    assert.deepEqual(
+      [...INTERVALOS_AGREGACION],
+      ['minuto', 'hora', 'dia', 'semana', 'mes']
+    );
   });
 
   test('el mapeo a date_trunc es el esperado', () => {
     // Réplica del mapa usado en el repositorio: si alguien lo cambia, este
     // test obliga a revisar el impacto.
     const TRUNCS: Record<string, string> = {
+      minuto: 'minute',
       hora: 'hour',
       dia: 'day',
       semana: 'week',
       mes: 'month',
     };
+    assert.equal(TRUNCS.minuto, 'minute');
     assert.equal(TRUNCS.hora, 'hour');
     assert.equal(TRUNCS.dia, 'day');
     assert.equal(TRUNCS.semana, 'week');
