@@ -9,6 +9,7 @@
  * Uso: node scripts/instalar-flujo-simulador.mjs
  */
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
@@ -94,9 +95,9 @@ if (yaInstalado) {
     id: injectSim,
     type: 'inject',
     z: tabSim,
-    name: 'cada 5 s',
+    name: 'cada 15 s',
     props: [{ p: 'payload' }],
-    repeat: '5',
+    repeat: '15',
     crontab: '',
     once: false,
     onceDelay: 0.1,
@@ -140,4 +141,36 @@ writeFileSync(FLUJOS, JSON.stringify(flujos, null, 4));
 console.log(`✔ Guardado ${FLUJOS} (copia en flows.json.bak)`);
 if (debugExistente) {
   console.log(`· El debug "${debugExistente.name}" recibirá también las respuestas del simulador.`);
+}
+
+// ── 4) Aviso: Node-RED debe recargar el archivo ───────────────
+// Node-RED carga flows.json en memoria al arrancar. Si está corriendo
+// mientras se modifica el archivo, seguirá mostrando la versión ANTIGUA (y
+// al guardar desde la interfaz sobrescribirá este cambio).
+const nrCorriendo = (() => {
+  try {
+    const salida = execSync('pgrep -f "^node-red$" || pgrep -f "node-red "', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+    return salida.length > 0;
+  } catch {
+    return false; // pgrep devuelve código 1 cuando no encuentra nada
+  }
+})();
+
+console.log('');
+if (nrCorriendo) {
+  console.warn('⚠️  Node-RED ESTÁ CORRIENDO.');
+  console.warn('   El archivo ya está actualizado en disco, pero Node-RED sigue');
+  console.warn('   usando la versión que cargó en memoria al arrancar:');
+  console.warn('   NO verás el flujo nuevo hasta que reinicies.');
+  console.warn('');
+  console.warn('   Además, si guardas algo desde la interfaz, Node-RED');
+  console.warn('   SOBRESCRIBIRÁ este cambio con su versión antigua.');
+  console.warn('');
+  console.warn('   → Reinicia Node-RED (Ctrl+C en su terminal y `node-red`).');
+} else {
+  console.log('✔ Node-RED no está corriendo: al arrancarlo cargará el flujo nuevo.');
 }
