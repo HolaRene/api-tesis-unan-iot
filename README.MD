@@ -109,7 +109,8 @@ La API centraliza y valida todas las variables de entorno con **Zod** en `src/co
 | `pnpm check` | Validación de tipos de TypeScript (sin emitir) |
 | `pnpm build` | Compila el proyecto a `dist/` |
 | `pnpm start` | Ejecuta el servidor compilado desde `dist/` |
-| `pnpm migrate` | Aplica las migraciones SQL de `src/database/migrations` |
+| `pnpm migrate` | Aplica las migraciones SQL de `src/database/migrations` (multiplataforma) |
+| `pnpm migrate:bash` | Variante antigua en `bash` (requiere `psql`; solo Linux/macOS) |
 | `pnpm seed` | Crea el usuario administrador inicial |
 
 ## Estructura
@@ -172,6 +173,18 @@ pnpm migrate
 - `0001_inicial.sql` — marcador de arranque.
 - `0002_schema_entidades.sql` — esquema completo de las 10 tablas.
 - `0003_cascade.sql` — claves foráneas con `ON DELETE CASCADE`.
+
+> ⚠️ **`pnpm migrate` aplica TODOS los `.sql` en cada ejecución y `0009` hace
+> `TRUNCATE`.** No lleva registro de migraciones ya aplicadas, así que
+> ejecutarlo sobre una base de datos **con datos** borra dispositivos,
+> sensores, mediciones, cámaras, alertas y áreas (conserva `usuarios` y
+> `tipos_variable`).
+>
+> - Base **recién creada** → úsalo sin problema.
+> - Base **con datos** → aplica a mano solo el archivo nuevo:
+>   `psql "$DATABASE_URL" -f src/database/migrations/00XX_nombre.sql`
+>
+> Guía completa: [`docs/instalacion-computadora-nueva.md`](../docs/instalacion-computadora-nueva.md)
 
 ### Eliminación en cascada
 

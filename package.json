@@ -15,7 +15,8 @@
     "check": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "seed": "tsx scripts/seed.ts",
-    "migrate": "bash scripts/migrate.sh"
+    "migrate": "tsx scripts/migrate.ts",
+    "migrate:bash": "bash scripts/migrate.sh"
   },
   "keywords": [
     "iot",
