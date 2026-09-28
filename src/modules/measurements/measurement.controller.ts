@@ -28,6 +28,9 @@ export const measurementController = {
           canal_id: q.canal_id,
           dispositivo_id: q.dispositivo_id,
           area_id: q.area_id,
+          // Sin esto, agregar un área o un dispositivo mezclaría magnitudes
+          // distintas en un mismo promedio (temperatura con voltaje…).
+          tipo_variable_id: q.tipo_variable_id,
           desde: q.desde,
           hasta: q.hasta,
         },

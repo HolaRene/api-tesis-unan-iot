@@ -231,6 +231,8 @@ export const measurementRepository = {
       canal_id?: string;
       dispositivo_id?: string;
       area_id?: string;
+      /** Magnitud a la que limitar la serie (ver comentario en el cuerpo). */
+      tipo_variable_id?: string;
       desde?: string;
       hasta?: string;
     },
@@ -272,6 +274,21 @@ export const measurementRepository = {
     }
     if (filtro.area_id !== undefined) {
       cond.push(`d.area_id = ${nexo(filtro.area_id)}`);
+    }
+    /*
+     * Filtro por MAGNITUD (tipo de variable).
+     *
+     * Sin esta condición, agregar por área o por dispositivo promedia
+     * columnas de naturaleza distinta (temperatura con voltaje, humedad con
+     * corriente…) y devuelve un número sin significado físico.
+     *
+     * El tipo puede venir del canal (modelo nuevo) o del sensor (mediciones
+     * antiguas anteriores a los canales), de ahí el COALESCE.
+     */
+    if (filtro.tipo_variable_id !== undefined) {
+      cond.push(
+        `COALESCE(c.tipo_variable_id, s.tipo_variable_id) = ${nexo(filtro.tipo_variable_id)}`
+      );
     }
     if (filtro.desde !== undefined) {
       cond.push(`m.registrado_en >= ${nexo(filtro.desde)}`);

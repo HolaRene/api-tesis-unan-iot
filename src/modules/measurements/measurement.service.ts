@@ -181,6 +181,18 @@ export const measurementService = {
       canal_id?: string;
       dispositivo_id?: string;
       area_id?: string;
+      /**
+       * Magnitud (tipo de variable) a la que limitar la serie.
+       *
+       * Es imprescindible al agregar un ÁREA o un DISPOSITIVO con varias
+       * magnitudes: sin este filtro, `avg()` promedia columnas distintas
+       * (temperatura, voltaje, corriente…) y devuelve un número sin
+       * significado físico.
+       *
+       * El repositorio ya lo soportaba, pero no se propagaba desde aquí, así
+       * que se ignoraba en silencio.
+       */
+      tipo_variable_id?: string;
       desde?: string;
       hasta?: string;
     },

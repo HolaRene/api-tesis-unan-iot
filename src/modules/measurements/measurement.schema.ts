@@ -76,6 +76,20 @@ export const seriesMedicionesSchema = z.object({
     .uuid('El id del dispositivo no es válido')
     .optional(),
   area_id: z.string().uuid('El id del área no es válido').optional(),
+  /**
+   * Magnitud (tipo de variable) a la que limitar la serie.
+   *
+   * Es OBLIGATORIO al agregar un área o un dispositivo con varias magnitudes:
+   * `avg()` promediaría columnas distintas (temperatura, voltaje, corriente…)
+   * y devolvería un valor sin significado físico.
+   *
+   * Sin declararlo aquí, Zod descarta la clave del query string y el filtro
+   * nunca llega al repositorio (se ignoraba en silencio).
+   */
+  tipo_variable_id: z
+    .string()
+    .uuid('El id del tipo de variable no es válido')
+    .optional(),
   desde: z.string().optional(),
   hasta: z.string().optional(),
   intervalo: z.enum(INTERVALOS_AGREGACION).default('hora'),

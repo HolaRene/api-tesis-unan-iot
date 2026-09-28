@@ -9,6 +9,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { INTERVALOS_AGREGACION } from './measurement.types.js';
+import { seriesMedicionesSchema } from './measurement.schema.js';
 
 /**
  * Réplica de la lógica de resumen del servicio, aislada para poder probarla
@@ -103,5 +104,60 @@ describe('intervalos de agregación', () => {
     assert.equal(TRUNCS.dia, 'day');
     assert.equal(TRUNCS.semana, 'week');
     assert.equal(TRUNCS.mes, 'month');
+  });
+});
+
+/**
+ * Regresión: el filtro `tipo_variable_id` debe LLEGAR al repositorio.
+ *
+ * Bug encontrado: el schema del query no declaraba `tipo_variable_id`, así que
+ * Zod lo descartaba del query string. El controlador lo leía como `undefined`
+ * y el filtro se ignoraba en silencio.
+ *
+ * Consecuencia visible: al pedir las series de un ÁREA o de un DISPOSITIVO con
+ * varias magnitudes, todas devolvían el MISMO valor (el promedio de
+ * temperatura, voltaje, corriente… mezclados), que no significa nada.
+ *
+ * Se comprueba aquí porque es una regresión silenciosa: no da error, solo
+ * devuelve datos incorrectos.
+ */
+describe('series: filtro por magnitud (tipo_variable_id)', () => {
+  const UUID = '022aad9d-2e6f-4496-bfb7-21f3724fb31e';
+
+  test('el schema CONSERVA tipo_variable_id (no lo descarta)', () => {
+    const resultado = seriesMedicionesSchema.parse({
+      area_id: UUID,
+      tipo_variable_id: UUID,
+    });
+
+    // Si esta clave desaparece, el filtro nunca llega al repositorio.
+    assert.ok(
+      'tipo_variable_id' in resultado,
+      'El schema descartó tipo_variable_id: el filtro se ignoraría'
+    );
+    assert.equal(resultado.tipo_variable_id, UUID);
+  });
+
+  test('se puede combinar area_id + tipo_variable_id', () => {
+    const resultado = seriesMedicionesSchema.parse({
+      area_id: UUID,
+      tipo_variable_id: UUID,
+      intervalo: 'dia',
+    });
+
+    assert.equal(resultado.area_id, UUID);
+    assert.equal(resultado.tipo_variable_id, UUID);
+    assert.equal(resultado.intervalo, 'dia');
+  });
+
+  test('rechaza un tipo_variable_id que no sea UUID', () => {
+    assert.throws(() =>
+      seriesMedicionesSchema.parse({ tipo_variable_id: 'no-es-uuid' })
+    );
+  });
+
+  test('es opcional: sin él no falla', () => {
+    const resultado = seriesMedicionesSchema.parse({ area_id: UUID });
+    assert.equal(resultado.tipo_variable_id, undefined);
   });
 });
