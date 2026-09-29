@@ -99,6 +99,13 @@ La API centraliza y valida todas las variables de entorno con **Zod** en `src/co
 | `RATE_LIMIT_WINDOW_MS` | Ventana de rate limit (ms) | `900000` |
 | `RATE_LIMIT_MAX` | Máx. solicitudes por ventana/IP | `100` |
 
+> **Las rutas `/iot/*` NO están sujetas al rate limit.** Node-RED y los equipos
+> consultan allí cada pocos segundos (polling), lo que superaría con creces el
+> límite pensado para el navegador. Ya están protegidas por API Key.
+>
+> El resto de la API (login, registro, CRUD…) mantiene el límite, que es donde
+> sí protege contra fuerza bruta y abuso.
+
 > La API carga `.env.<NODE_ENV>` (ej. `.env.development`) si existe, o `.env` en su defecto.
 
 ## Scripts
@@ -315,6 +322,21 @@ Campos: `dispositivo_id`, `tipo_variable_id`, `nombre`, `codigo` (único), `fabr
 > RSSI…). Un watchdog marca `offline` los equipos sin contacto
 > (`DEVICE_OFFLINE_MINUTOS`). Ver
 > [`../docs/estado-dispositivos.md`](../docs/estado-dispositivos.md).
+
+> 🎛️ **Comandos a actuadores.** El circuito completo (web → API → Node-RED →
+> MQTT → PLC/ESP32) está documentado en
+> [`../docs/comandos-actuadores.md`](../docs/comandos-actuadores.md).
+> La web encola la orden en `POST /actuadores/:id/comandos` (estado
+> `pendiente`); Node-RED la recoge con `GET /iot/comandos/pendientes` y
+> confirma la entrega con `PATCH /iot/comandos/:id` (ambos con el permiso
+> `comandos:enviar`). El propio equipo puede confirmar la ejecución.
+>
+> 🔌 **Contratos y flujos de integración.** Los payloads exactos que acepta la
+> API, la estructura de los flujos de Node-RED, los temas MQTT y el código del
+> ESP32 están en
+> [`../docs/integracion-node-red-mqtt.md`](../docs/integracion-node-red-mqtt.md).
+> Para controlar un LED o buzzer **sin** Node-RED ni MQTT:
+> [`../docs/esp32-http-buzzer.md`](../docs/esp32-http-buzzer.md).
 
 ### Mediciones (ingesta para Node-RED)
 

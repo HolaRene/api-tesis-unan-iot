@@ -56,6 +56,22 @@ export function crearApp(): Express {
       max: env.RATE_LIMIT_MAX,
       standardHeaders: true,
       legacyHeaders: false,
+      /**
+       * Las rutas /iot/* quedan FUERA del límite.
+       *
+       * Por qué: Node-RED (y cualquier equipo) consulta los comandos pendientes
+       * cada 2 s para entregarlos con rapidez. Eso son ~450 peticiones cada
+       * 15 minutos por equipo, muy por encima del límite general pensado para
+       * el navegador.
+       *
+       * Es seguro excluirlas porque:
+       *   - Ya exigen una API Key válida (no son públicas).
+       *   - Son tráfico máquina-a-máquina, no de usuarios.
+       *   - Un límite bajo las rompe sin proteger nada real.
+       *
+       * El resto de la API (login, registro, CRUD…) mantiene su límite.
+       */
+      skip: (req) => req.path.startsWith(`${VERSION}/iot/`),
       message: {
         exito: false,
         mensaje: 'Demasiadas solicitudes. Intente de nuevo más tarde.',

@@ -35,4 +35,36 @@ router.post(
   iotController.estadoDispositivo
 );
 
+/*
+ * ────────────────────────────────────────────────────────────────
+ * RECOGIDA DE COMANDOS (Node-RED → equipo físico)
+ * ────────────────────────────────────────────────────────────────
+ * Estas dos rutas cierran el circuito de los actuadores:
+ *
+ *   1. GET /iot/comandos/pendientes
+ *      Node-RED pregunta cada pocos segundos si hay órdenes nuevas. Se
+ *      devuelven con el tema MQTT al que debe publicarlas.
+ *
+ *   2. PATCH /iot/comandos/:id
+ *      Node-RED confirma la entrega ('enviado') y, si el equipo responde,
+ *      la ejecución ('ejecutado'). En ese caso puede actualizar el estado
+ *      real del actuador.
+ *
+ * Ambas exigen el permiso `comandos:enviar`.
+ */
+
+// Consulta de comandos pendientes de entrega
+router.get(
+  '/comandos/pendientes',
+  verificarPermisosApi('comandos:enviar'),
+  iotController.comandosPendientes
+);
+
+// Confirmación de entrega / ejecución de un comando
+router.patch(
+  '/comandos/:id',
+  verificarPermisosApi('comandos:enviar'),
+  iotController.confirmarComando
+);
+
 export default router;

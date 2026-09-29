@@ -12,7 +12,11 @@ const SELECT_COMANDO = `
   ac.codigo AS actuador_codigo,
   ac.nombre AS actuador_nombre,
   ac.dispositivo_id AS dispositivo_id,
+  ac.topico_mqtt AS actuador_topico_mqtt,
+  ac.estado_actual AS actuador_estado_actual,
+  ac.tipo AS actuador_tipo,
   di.nombre AS dispositivo_nombre,
+  di.identificador AS dispositivo_identificador,
   ar.nombre AS area_nombre,
   ca.nombre AS clave_api_nombre
 `;
@@ -57,7 +61,54 @@ export const comandoActuadorRepository = {
     return (await this.buscarPorId(insertado.rows[0].id)) as ComandoActuadorConRelaciones;
   },
 
-  /** Busca un comando por su id (con relaciones). */
+  /**
+   * Comandos PENDIENTES de entrega, del más antiguo al más nuevo.
+   *
+   * Lo usan Node-RED y los propios equipos (autenticados con API Key) para
+   * recoger las órdenes que la web ha encolado. Se ordena por `creado_en` ASC
+   * para respetar el orden en que el usuario los envió: si se pulsó "ON" y
+   * luego "OFF", debe llegar primero el ON.
+   *
+   * @param filtro.identificador  Si se indica, solo se devuelven los comandos
+   *   de los actuadores de ESE dispositivo. Es lo que permite a un ESP32
+   *   preguntar únicamente por sus propias órdenes en lugar de recibir las de
+   *   toda la instalación.
+   * @param filtro.actuadorCodigo  Si se indica, solo los de ese actuador.
+   */
+  async listarPendientes(
+    filtro: { identificador?: string; actuadorCodigo?: string } = {},
+    limite = 50
+  ): Promise<ComandoActuadorConRelaciones[]> {
+    const cond: string[] = [`c.estado = 'pendiente'`];
+    const valores: unknown[] = [];
+
+    if (filtro.identificador) {
+      valores.push(filtro.identificador);
+      cond.push(`di.identificador = $${valores.length}`);
+    }
+    if (filtro.actuadorCodigo) {
+      valores.push(filtro.actuadorCodigo);
+      cond.push(`ac.codigo = $${valores.length}`);
+    }
+
+    valores.push(limite);
+
+    const r = await query<ComandoActuadorConRelaciones>(
+      `SELECT ${SELECT_COMANDO} ${FROM_COMANDO}
+       WHERE ${cond.join(' AND ')}
+       ORDER BY c.creado_en ASC
+       LIMIT $${valores.length}`,
+      valores
+    );
+    return r.rows;
+  },
+
+  /**
+   * Busca un comando por su id (con relaciones).
+   *
+   * El `SELECT` incluye `ac.topico_mqtt`, que es lo que necesita Node-RED
+   * para saber a qué tema publicar.
+   */
   async buscarPorId(id: string): Promise<ComandoActuadorConRelaciones | null> {
     const r = await query<ComandoActuadorConRelaciones>(
       `SELECT ${SELECT_COMANDO} ${FROM_COMANDO} WHERE c.id = $1 LIMIT 1`,
