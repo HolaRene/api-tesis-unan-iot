@@ -64,6 +64,33 @@ export const INTERVALOS_AGREGACION = [
 
 export type IntervaloAgregacion = (typeof INTERVALOS_AGREGACION)[number];
 
+/**
+ * Intervalo especial: devuelve cada medición SIN agrupar.
+ *
+ * ¿Por qué existe?
+ *
+ * Agrupar por minuto está bien para series largas, pero oculta los datos
+ * cuando el periodo de muestreo es más rápido que la agrupación. Si un equipo
+ * envía cada 2 segundos y el cubo es de un minuto, 30 mediciones se funden en
+ * UN solo punto: en el gráfico se ve un punto suelto y parece que el sensor se
+ * desconectó, cuando en realidad llegaron todos los datos.
+ *
+ * Con `sin_agrupar` se dibuja una medición por punto, con su hora exacta.
+ * Cada punto lleva `muestras: 1` y `minimo = maximo = media = valor`.
+ *
+ * ⚠️ No lleva `date_trunc`, así que conviene acotar el rango con `desde`/`hasta`
+ * o con `limite` para no traer millones de filas.
+ */
+export const INTERVALO_SIN_AGRUPAR = 'sin_agrupar' as const;
+
+/**
+ * Intervalo aceptado por el endpoint de series: los agrupados o `sin_agrupar`.
+ *
+ * Se usa este tipo (y no `IntervaloAgregacion`) en las capas que deben admitir
+ * ambos casos, como el repositorio de series.
+ */
+export type IntervaloSerie = IntervaloAgregacion | typeof INTERVALO_SIN_AGRUPAR;
+
 /** Un cubo temporal con las estadísticas de las mediciones que contiene. */
 export interface SerieAgregada {
   /** Inicio del intervalo (lo devuelve `date_trunc`). */
@@ -79,7 +106,8 @@ export interface SerieAgregada {
 
 /** Respuesta del endpoint de series: los cubos + un resumen global. */
 export interface SeriesAgregadas {
-  intervalo: IntervaloAgregacion;
+  /** Intervalo con el que se agrupó, o `sin_agrupar` si son datos crudos. */
+  intervalo: IntervaloSerie;
   desde: string | null;
   hasta: string | null;
   /** Totales del periodo completo (no la media de las medias). */

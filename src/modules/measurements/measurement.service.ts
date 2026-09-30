@@ -3,7 +3,7 @@ import { ApiError } from '../../utils/api-error.js';
 import type {
   CrearMeasurementInput,
   FiltrarMediciones,
-  IntervaloAgregacion,
+  IntervaloSerie,
   Measurement,
   SeriesAgregadas,
 } from './measurement.types.js';
@@ -196,7 +196,7 @@ export const measurementService = {
       desde?: string;
       hasta?: string;
     },
-    intervalo: IntervaloAgregacion,
+    intervalo: IntervaloSerie,
     usuario?: UsuarioAlcance | null,
     limite = 1000
   ): Promise<SeriesAgregadas> {

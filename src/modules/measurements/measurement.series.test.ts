@@ -161,3 +161,36 @@ describe('series: filtro por magnitud (tipo_variable_id)', () => {
     assert.equal(resultado.tipo_variable_id, undefined);
   });
 });
+
+/**
+ * Intervalo `sin_agrupar`: devuelve una fila por medición.
+ *
+ * Existe porque agrupar oculta datos cuando el equipo muestrea más rápido que
+ * el cubo. Con cubos de un minuto y mediciones cada 2 segundos, 30 mediciones
+ * se funden en UN punto: el gráfico muestra un dato suelto y parece que el
+ * sensor se desconectó, cuando en realidad llegaron todas.
+ */
+describe('intervalo sin_agrupar', () => {
+  test('el esquema lo acepta', () => {
+    const resultado = seriesMedicionesSchema.parse({ intervalo: 'sin_agrupar' });
+    assert.equal(resultado.intervalo, 'sin_agrupar');
+  });
+
+  test('convive con los intervalos agrupados', () => {
+    for (const intervalo of INTERVALOS_AGREGACION) {
+      const r = seriesMedicionesSchema.parse({ intervalo });
+      assert.equal(r.intervalo, intervalo);
+    }
+  });
+
+  test('sigue rechazando un intervalo inventado', () => {
+    // El valor se resuelve contra una lista blanca: nunca llega crudo al SQL.
+    assert.throws(() => seriesMedicionesSchema.parse({ intervalo: 'segundo' }));
+    assert.throws(() => seriesMedicionesSchema.parse({ intervalo: 'DROP TABLE' }));
+  });
+
+  test('por defecto se sigue agrupando por hora', () => {
+    const resultado = seriesMedicionesSchema.parse({});
+    assert.equal(resultado.intervalo, 'hora');
+  });
+});

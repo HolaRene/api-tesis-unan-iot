@@ -2,10 +2,11 @@ import { query } from '../../database/pool.js';
 import type {
   CrearMeasurementInput,
   FiltrarMediciones,
-  IntervaloAgregacion,
+  IntervaloSerie,
   Measurement,
   SerieAgregada,
 } from './measurement.types.js';
+import { INTERVALO_SIN_AGRUPAR } from './measurement.types.js';
 import { esAlcanceTotal, type UsuarioAlcance } from '../../utils/alcance.js';
 
 /** Columnas devueltas en las consultas que mapean a una Medición. */
@@ -236,19 +237,20 @@ export const measurementRepository = {
       desde?: string;
       hasta?: string;
     },
-    intervalo: IntervaloAgregacion,
+    intervalo: IntervaloSerie,
     usuario?: UsuarioAlcance | null,
     limiteCubos = 1000
   ): Promise<SerieAgregada[]> {
     // Lista blanca: el valor se resuelve aquí, nunca llega del cliente.
-    const TRUNCS: Record<IntervaloAgregacion, string> = {
+    // `sin_agrupar` no llega aqui: se resuelve antes con su propia consulta.
+    const TRUNCS: Record<Exclude<IntervaloSerie, typeof INTERVALO_SIN_AGRUPAR>, string> = {
       minuto: 'minute',
       hora: 'hour',
       dia: 'day',
       semana: 'week',
       mes: 'month',
     };
-    const trunc = TRUNCS[intervalo];
+    const trunc = TRUNCS[intervalo as Exclude<IntervaloSerie, typeof INTERVALO_SIN_AGRUPAR>];
 
     const cond: string[] = [];
     const vals: unknown[] = [];
@@ -304,6 +306,40 @@ export const measurementRepository = {
     }
 
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+
+    /*
+     * Sin agrupar: una fila por MEDICIÓN, con su marca de tiempo exacta.
+     *
+     * Se usa cuando el equipo muestrea más rápido que el cubo (p. ej. cada 2 s
+     * con cubos de 1 minuto). Agrupando, todas esas mediciones se funden en un
+     * único punto y el gráfico parece tener un solo dato, como si el sensor se
+     * hubiera desconectado.
+     *
+     * `minimo = maximo = media` y `muestras = 1` porque cada punto es UNA
+     * medición: así la forma de la respuesta es idéntica a la agrupada y el
+     * frontend no necesita un camino distinto. `desviacion` va a NULL porque no
+     * tiene sentido la desviación de un solo valor.
+     */
+    if (intervalo === INTERVALO_SIN_AGRUPAR) {
+      const sqlSinAgrupar = `
+        SELECT
+          m.registrado_en        AS cubo,
+          m.valor_numerico       AS media,
+          m.valor_numerico       AS minimo,
+          m.valor_numerico       AS maximo,
+          NULL::numeric          AS desviacion,
+          1                      AS muestras
+        FROM mediciones m
+        LEFT JOIN canales c ON c.id = m.canal_id
+        LEFT JOIN sensores s ON s.id = ${sensorEfectivo}
+        LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
+        ${where}
+        ORDER BY m.registrado_en ASC
+        LIMIT ${nexo(limiteCubos)}
+      `;
+      const r = await query<SerieAgregada>(sqlSinAgrupar, vals);
+      return r.rows;
+    }
 
     const sql = `
       SELECT

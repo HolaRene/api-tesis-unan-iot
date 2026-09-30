@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { INTERVALOS_AGREGACION } from './measurement.types.js';
+import {
+  INTERVALO_SIN_AGRUPAR,
+  INTERVALOS_AGREGACION,
+} from './measurement.types.js';
 
 /**
  * Esquemas Zod del módulo de mediciones.
@@ -92,7 +95,14 @@ export const seriesMedicionesSchema = z.object({
     .optional(),
   desde: z.string().optional(),
   hasta: z.string().optional(),
-  intervalo: z.enum(INTERVALOS_AGREGACION).default('hora'),
+  /*
+   * `sin_agrupar` devuelve una fila por medicion, sin promediar por cubo.
+   * Sirve cuando el equipo muestrea mas rapido que el intervalo: agrupando,
+   * decenas de mediciones se funden en un punto y el grafico parece vacio.
+   */
+  intervalo: z
+    .enum([...INTERVALOS_AGREGACION, INTERVALO_SIN_AGRUPAR])
+    .default('hora'),
   /** Nº máximo de cubos devueltos (protege la respuesta). */
   limite: z.coerce.number().int().min(1).max(2000).default(1000),
 });
