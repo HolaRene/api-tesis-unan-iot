@@ -337,6 +337,14 @@ Campos: `dispositivo_id`, `tipo_variable_id`, `nombre`, `codigo` (único), `fabr
 > [`../docs/integracion-node-red-mqtt.md`](../docs/integracion-node-red-mqtt.md).
 > Para controlar un LED o buzzer **sin** Node-RED ni MQTT:
 > [`../docs/esp32-http-buzzer.md`](../docs/esp32-http-buzzer.md).
+>
+> 🏭 **Comandos a PLC por Modbus.** Si el PLC se controla por Modbus en lugar
+> de MQTT, el flujo de Node-RED (escritura + **confirmación para saber si se
+> ejecutó**) está en
+> [`../docs/node-red-modbus.md`](../docs/node-red-modbus.md).
+>
+> ⚠️ **Confirmar es obligatorio.** Un comando sin confirmar se queda en
+> `pendiente` y Node-RED lo reenvía al PLC en cada ciclo, indefinidamente.
 
 ### Mediciones (ingesta para Node-RED)
 
