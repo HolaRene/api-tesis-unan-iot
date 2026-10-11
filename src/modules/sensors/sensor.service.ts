@@ -8,6 +8,7 @@ import type {
 import { sensorRepository } from './sensor.repository.js';
 import { canalService } from '../canales/canal.service.js';
 import { condicionVisibilidad, type UsuarioAlcance } from '../../utils/alcance.js';
+import { normalizarIdentificador } from '../../utils/identificadores.js';
 
 /**
  * Lógica de negocio del módulo de sensores.
@@ -49,8 +50,37 @@ export const sensorService = {
   },
 
   /**
-   * Crea un sensor. Valida referencias y unicidad del código.
+   * Devuelve un código de sensor libre, añadiendo sufijo si hace falta.
+   *
+   *   "DHT1W"  → "DHT1W"
+   *   (otra vez) → "DHT1W-2"
+   */
+  async codigoSensorDisponible(base: string): Promise<string> {
+    let candidato = base;
+    let intento = 1;
+    while (await sensorRepository.buscarPorCodigo(candidato)) {
+      intento += 1;
+      candidato = `${base}-${intento}`;
+    }
+    return candidato;
+  },
+
+  /**
+   * Crea un sensor. Valida referencias y GENERA el código.
    * El dispositivo destino debe ser accesible para el usuario.
+   *
+   * EL CÓDIGO LO GENERA EL SERVIDOR, no el cliente.
+   *
+   * Es la clave del sensor y forma parte del código de sus canales
+   * (`<sensor>-<magnitud>`), que es lo que los equipos envían en cada medición:
+   *
+   *     {"canal": "DHT1W-TEMPERATURA", "valor": 24.8}
+   *
+   * Si se escribiera a mano habría duplicados y, peor, códigos de canal
+   * distintos para el mismo sensor según quién lo creara.
+   *
+   * Se deriva del NOMBRE del sensor y se le añade sufijo si ya está ocupado.
+   * Si el cliente envía un `codigo`, se IGNORA en silencio.
    */
   async crear(
     entrada: CrearSensorInput,
@@ -67,12 +97,14 @@ export const sensorService = {
       await this.validarExistencias(null, magnitud.tipo_variable_id);
     }
 
-    const existente = await sensorRepository.buscarPorCodigo(entrada.codigo);
-    if (existente) {
-      throw ApiError.conflict('Ya existe un sensor con ese código');
-    }
+    /*
+     * El código se genera ANTES de crear el sensor porque los canales lo
+     * necesitan para construir el suyo (`<sensor>-<magnitud>`).
+     */
+    const base = normalizarIdentificador(entrada.nombre) || 'SENSOR';
+    const codigo = await this.codigoSensorDisponible(base);
 
-    const sensor = await sensorRepository.crear(entrada);
+    const sensor = await sensorRepository.crear({ ...entrada, codigo });
 
     // Modelo multivariable: el sensor declara sus magnitudes (`canales`) y se
     // crea un canal por cada una. Si no se declaran, se usa la magnitud
@@ -111,12 +143,17 @@ export const sensorService = {
     // Comprueba acceso antes de nada (404 si no es visible).
     await this.obtenerPorId(id, usuario);
 
-    if (entrada.codigo !== undefined) {
-      const existente = await sensorRepository.buscarPorCodigo(entrada.codigo);
-      if (existente && existente.id !== id) {
-        throw ApiError.conflict('Ya existe otro sensor con ese código');
-      }
-    }
+    /*
+     * El CÓDIGO no se puede cambiar.
+     *
+     * Forma parte del código de sus canales, que es lo que los equipos usan
+     * en cada medición. Modificarlo partiría el histórico en dos: las
+     * mediciones nuevas llegarían con el código nuevo y las antiguas
+     * quedarían con el viejo.
+     *
+     * Si el cliente lo envía, se descarta sin error.
+     */
+    const { codigo: _ignorado, ...datos } = entrada;
 
     await this.validarExistencias(
       entrada.dispositivo_id,
@@ -124,7 +161,7 @@ export const sensorService = {
       usuario
     );
 
-    const actualizado = await sensorRepository.actualizar(id, entrada, usuario);
+    const actualizado = await sensorRepository.actualizar(id, datos, usuario);
     if (!actualizado) {
       throw ApiError.forbidden('No tiene permisos para modificar este sensor');
     }

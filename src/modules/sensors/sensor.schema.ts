@@ -51,10 +51,15 @@ export const crearSensorSchema = z.object({
     .string()
     .min(1, 'El nombre es obligatorio')
     .max(100, 'El nombre no puede superar 100 caracteres'),
-  codigo: z
-    .string()
-    .min(1, 'El código es obligatorio')
-    .max(100, 'El código no puede superar 100 caracteres'),
+  /*
+   * El `codigo` NO se exige: lo genera el servidor a partir del nombre.
+   *
+   * Se acepta si llega (para no romper clientes antiguos) pero el servicio lo
+   * descarta y usa el suyo. Exigirlo provocaba un 400 con el mensaje
+   * «expected string, received undefined» que no explicaba nada al usuario:
+   * el formulario ya no muestra ese campo porque no hay que rellenarlo.
+   */
+  codigo: z.string().trim().max(100, 'El código no puede superar 100 caracteres').optional(),
   fabricante: textoOpcional(100),
   modelo: textoOpcional(100),
   unidad: textoOpcional(30),

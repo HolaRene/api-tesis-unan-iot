@@ -7,6 +7,10 @@ import type {
 } from './device.types.js';
 import { deviceRepository } from './device.repository.js';
 import { condicionVisibilidad, type UsuarioAlcance } from '../../utils/alcance.js';
+import {
+  identificadorDeDispositivo,
+  identificadorUnico,
+} from '../../utils/identificadores.js';
 
 /**
  * Lógica de negocio del módulo de dispositivos.
@@ -39,6 +43,22 @@ export const deviceService = {
   /**
    * Crea un dispositivo. Valida que el área asociada exista y sea accesible.
    * Se asigna como propietario al usuario autenticado.
+   *
+   * EL IDENTIFICADOR LO GENERA EL SERVIDOR, no el cliente.
+   *
+   * Es la clave con la que el equipo se identifica al enviar datos
+   * (`{"dispositivo": "ESP32-Q2", ...}`) y tiene restricción UNIQUE en toda
+   * la base de datos. Si se escribiera a mano habría duplicados, formatos
+   * inconsistentes ("temp1", "Temp-1") y fallos con errores de base de datos
+   * poco claros.
+   *
+   * Se deriva del NOMBRE y se le añade un sufijo numérico si ya está ocupado:
+   *
+   *   "ESP32 Quirófano"  →  "ESP32-QUIROFANO"
+   *   (otra vez)         →  "ESP32-QUIROFANO-2"
+   *
+   * Si el cliente envía un `identificador`, se IGNORA en silencio: así una
+   * versión antigua del frontend que aún lo mande sigue funcionando.
    */
   async crear(
     entrada: CrearDeviceInput,
@@ -47,15 +67,40 @@ export const deviceService = {
     if (entrada.area_id) {
       await this.verificarArea(entrada.area_id, usuario);
     }
+
+    const base = identificadorDeDispositivo(entrada.nombre);
+    const identificador = await identificadorUnico(base, (candidato) =>
+      this.identificadorOcupado(candidato)
+    );
+
     return deviceRepository.crear({
       ...entrada,
+      identificador,
       propietario_id: entrada.propietario_id ?? usuario?.id ?? null,
     });
+  },
+
+  /** ¿Existe ya un dispositivo con ese identificador? */
+  async identificadorOcupado(identificador: string): Promise<boolean> {
+    const r = await query<{ existe: boolean }>(
+      'SELECT EXISTS(SELECT 1 FROM dispositivos WHERE identificador = $1) AS existe',
+      [identificador]
+    );
+    return r.rows[0]?.existe ?? false;
   },
 
   /**
    * Actualiza un dispositivo por id (solo el propietario o un admin).
    * Valida el área si cambia.
+   *
+   * El IDENTIFICADOR no se puede cambiar desde aquí.
+   *
+   * Es la clave con la que el equipo ya está enviando datos: si se modificara,
+   * las mediciones nuevas llegarían con un identificador y las antiguas
+   * quedarían asociadas al anterior, partiendo el histórico en dos.
+   *
+   * Si el cliente lo envía, se descarta sin error, para no romper versiones
+   * antiguas del frontend.
    */
   async actualizar(
     id: string,
@@ -68,7 +113,11 @@ export const deviceService = {
     if (entrada.area_id) {
       await this.verificarArea(entrada.area_id, usuario);
     }
-    const actualizado = await deviceRepository.actualizar(id, entrada, usuario);
+
+    // Se elimina el identificador del payload de actualización.
+    const { identificador: _ignorado, ...datos } = entrada;
+
+    const actualizado = await deviceRepository.actualizar(id, datos, usuario);
     if (!actualizado) {
       throw ApiError.forbidden('No tiene permisos para modificar este dispositivo');
     }

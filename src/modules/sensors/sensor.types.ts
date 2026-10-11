@@ -54,7 +54,14 @@ export interface CrearSensorInput {
   dispositivo_id?: string | null;
   tipo_variable_id?: string | null;
   nombre: string;
-  codigo: string;
+  /**
+   * Código del sensor.
+   *
+   * Opcional: lo genera el servidor a partir del nombre. Si el cliente lo
+   * envía, el servicio lo ignora y usa el suyo para garantizar que sea único
+   * y consistente.
+   */
+  codigo?: string;
   fabricante?: string | null;
   modelo?: string | null;
   unidad?: string | null;
