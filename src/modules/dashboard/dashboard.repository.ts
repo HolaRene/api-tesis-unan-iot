@@ -73,6 +73,19 @@ export const dashboardRepository = {
 
     // Últimas mediciones con su sensor legible (incluye id del sensor).
     // Se usa LEFT JOIN + COALESCE para no ocultar las mediciones por canal.
+    /*
+     * El número del parámetro del LIMIT depende de si hay filtro por dueño.
+     *
+     * Antes estaba fijo como `$2`, pero `$1` solo existe cuando hay filtro
+     * (usuario no admin). Como admin, el SQL no tenía `$1` y sí se le pasaba
+     * un `null` como primer parámetro: Postgres no podía deducir su tipo y
+     * la consulta fallaba con "could not determine data type of parameter $1".
+     *
+     * Numerándolo según el caso, el SQL y los parámetros siempre coinciden.
+     */
+    const nLimiteMediciones = total ? 1 : 2;
+    const nLimiteAlertas = total ? 1 : 2;
+
     const medicionesRes = await query<MedicionResumen>(
       `SELECT m.id, COALESCE(m.sensor_id, c.sensor_id) AS sensor_id,
               m.valor_numerico, m.valor_texto, m.valor_booleano,
@@ -87,8 +100,8 @@ export const dashboardRepository = {
        LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
        ${filtroDueno}
        ORDER BY m.registrado_en DESC
-       LIMIT $2`,
-      total ? [null, limiteMediciones] : [usuario?.id ?? null, limiteMediciones]
+       LIMIT $${nLimiteMediciones}`,
+      total ? [limiteMediciones] : [usuario?.id ?? null, limiteMediciones]
     );
 
     const dispositivosRes = await query(
@@ -109,8 +122,8 @@ export const dashboardRepository = {
        LEFT JOIN dispositivos d ON d.id = s.dispositivo_id
        ${filtroDueno}
        ORDER BY a.iniciada_en DESC
-       LIMIT $2`,
-      total ? [null, limiteAlertas] : [usuario?.id ?? null, limiteAlertas]
+       LIMIT $${nLimiteAlertas}`,
+      total ? [limiteAlertas] : [usuario?.id ?? null, limiteAlertas]
     );
 
     return {
