@@ -6,6 +6,7 @@ import type {
   CrearActuadorInput,
 } from './actuador.types.js';
 import { actuadorRepository } from './actuador.repository.js';
+import { codigoDeActuador } from '../../utils/identificadores.js';
 
 /**
  * Lógica de negocio del módulo de actuadores.
@@ -25,14 +26,53 @@ export const actuadorService = {
     return actuador;
   },
 
-  /** Crea un actuador validando dispositivo y unicidad de código. */
+  /**
+   * Crea un actuador validando el dispositivo y GENERANDO el código.
+   *
+   * EL CÓDIGO LO GENERA EL SERVIDOR, no el cliente.
+   *
+   * Es una clave UNIQUE en toda la base de datos y forma parte del TEMA MQTT
+   * al que Node-RED publica las órdenes:
+   *
+   *     hospital/quirofano/cmd/BUZZER-QUIROFANO
+   *
+   * Se deriva del TIPO y el NOMBRE. Si el cliente envía un `codigo`, se
+   * IGNORA en silencio, para no romper versiones antiguas del frontend.
+   */
   async crear(entrada: CrearActuadorInput): Promise<ActuadorConRelaciones> {
     await this.validarDispositivo(entrada.dispositivo_id);
-    await this.validarCodigoUnico(entrada.codigo);
-    return actuadorRepository.crear(entrada);
+
+    const base = codigoDeActuador(entrada.nombre, entrada.tipo);
+    const codigo = await this.codigoDisponible(base);
+
+    return actuadorRepository.crear({ ...entrada, codigo });
   },
 
-  /** Actualiza un actuador. */
+  /**
+   * Devuelve un código libre, añadiendo sufijo numérico si hace falta.
+   *
+   *   "BUZZER-QUIROFANO"    → "BUZZER-QUIROFANO"
+   *   (otra vez)            → "BUZZER-QUIROFANO-2"
+   */
+  async codigoDisponible(base: string): Promise<string> {
+    let candidato = base;
+    let intento = 1;
+    while (await actuadorRepository.buscarPorCodigo(candidato)) {
+      intento += 1;
+      candidato = `${base}-${intento}`;
+    }
+    return candidato;
+  },
+
+  /**
+   * Actualiza un actuador.
+   *
+   * El CÓDIGO no se puede cambiar: forma parte del tema MQTT que Node-RED ya
+   * está usando para publicar órdenes. Si se modificara, los comandos
+   * seguirían saliendo al tema antiguo y el equipo dejaría de responder.
+   *
+   * Si el cliente lo envía, se descarta sin error.
+   */
   async actualizar(
     id: string,
     entrada: ActualizarActuadorInput
@@ -40,7 +80,10 @@ export const actuadorService = {
     if (entrada.dispositivo_id) {
       await this.validarDispositivo(entrada.dispositivo_id);
     }
-    const actualizado = await actuadorRepository.actualizar(id, entrada);
+
+    const { codigo: _ignorado, ...datos } = entrada;
+
+    const actualizado = await actuadorRepository.actualizar(id, datos);
     if (!actualizado) {
       throw ApiError.notFound('Actuador no encontrado');
     }
@@ -63,14 +106,6 @@ export const actuadorService = {
     );
     if (r.rows.length === 0) {
       throw ApiError.notFound('El dispositivo referido no existe');
-    }
-  },
-
-  /** Valida que el código no esté en uso. */
-  async validarCodigoUnico(codigo: string): Promise<void> {
-    const existente = await actuadorRepository.buscarPorCodigo(codigo);
-    if (existente) {
-      throw ApiError.conflict('Ya existe un actuador con ese código');
     }
   },
 };

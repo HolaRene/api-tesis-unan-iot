@@ -27,7 +27,14 @@ export interface ActuadorConRelaciones extends Actuador {
 export interface CrearActuadorInput {
   dispositivo_id: string;
   nombre: string;
-  codigo: string;
+  /**
+   * Código del actuador.
+   *
+   * Opcional: lo genera el servidor a partir del tipo y el nombre. Si el
+   * cliente lo envía, el servicio lo ignora y usa el suyo, para garantizar
+   * que sea único y consistente.
+   */
+  codigo?: string;
   tipo: string;
   estado_actual?: string | null;
   activo?: boolean;

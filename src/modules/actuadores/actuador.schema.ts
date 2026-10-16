@@ -22,10 +22,16 @@ export const crearActuadorSchema = z.object({
     .string()
     .min(1, 'El nombre es obligatorio')
     .max(100, 'El nombre no puede superar 100 caracteres'),
+  /*
+   * El `codigo` NO se exige: lo genera el servidor a partir del tipo y el
+   * nombre. Se acepta si llega, para no romper clientes antiguos, pero el
+   * servicio lo descarta y usa el suyo.
+   */
   codigo: z
     .string()
-    .min(1, 'El código es obligatorio')
-    .max(100, 'El código no puede superar 100 caracteres'),
+    .trim()
+    .max(100, 'El código no puede superar 100 caracteres')
+    .optional(),
   tipo: z
     .string()
     .min(1, 'El tipo es obligatorio')

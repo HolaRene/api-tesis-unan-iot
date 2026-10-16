@@ -136,3 +136,45 @@ export function codigoDeCanal(
 
   return `${sensor}-${magnitud}`;
 }
+
+/**
+ * Genera el código de un actuador a partir de su nombre y su tipo.
+ *
+ * Formato: `<TIPO>-<NOMBRE>` cuando el nombre no incluye ya el tipo.
+ *
+ *   "Buzzer Quirófano" + "buzzer"        → "BUZZER-QUIROFANO"
+ *   "Buzzer"           + "buzzer"        → "BUZZER"       (no repite)
+ *   "Relé 1"           + "digital_out"   → "DIGITAL-OUT-RELE-1"
+ *   "Compuerta A"      + ""              → "COMPUERTA-A"
+ *
+ * ────────────────────────────────────────────────────────────────────
+ * POR QUÉ SE PREFIJA EL TIPO
+ * ────────────────────────────────────────────────────────────────────
+ * El código del actuador forma parte del TEMA MQTT al que Node-RED publica
+ * las órdenes (`hospital/quirofano/cmd/RELE-1`). Que empiece por el tipo hace
+ * el tema autoexplicativo: al ver `cmd/BUZZER-QUIROFANO` se sabe qué se está
+ * accionando sin consultar la base de datos.
+ *
+ * El tipo se normaliza igual que el nombre, así que "digital_out" produce
+ * "DIGITAL-OUT" y el tema resultante no lleva guiones bajos.
+ */
+export function codigoDeActuador(
+  nombre: string,
+  tipo?: string | null
+): string {
+  const nombreNorm = normalizarIdentificador(nombre);
+  const tipoNorm = tipo ? normalizarIdentificador(tipo) : '';
+
+  // Sin tipo utilizable, el nombre por sí solo.
+  if (!tipoNorm) return nombreNorm || 'ACTUADOR';
+
+  /*
+   * Si el nombre YA empieza por el tipo, no se duplica:
+   * "Buzzer Quirófano" + "buzzer" no debe dar "BUZZER-BUZZER-QUIROFANO".
+   */
+  if (nombreNorm.startsWith(tipoNorm)) return nombreNorm;
+
+  if (!nombreNorm) return tipoNorm;
+
+  return `${tipoNorm}-${nombreNorm}`;
+}

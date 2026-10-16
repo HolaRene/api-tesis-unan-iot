@@ -14,6 +14,7 @@ import {
   identificadorUnico,
   identificadorDeDispositivo,
   codigoDeCanal,
+  codigoDeActuador,
 } from './identificadores.js';
 
 describe('normalizarIdentificador', () => {
@@ -123,5 +124,42 @@ describe('codigoDeCanal', () => {
 
   test('nunca devuelve vacío', () => {
     assert.equal(codigoDeCanal('', ''), 'CANAL');
+  });
+});
+
+describe('codigoDeActuador', () => {
+  test('prefija el tipo al nombre', () => {
+    // El tipo va delante para que el tema MQTT resultante sea
+    // autoexplicativo: cmd/BUZZER-QUIROFANO
+    assert.equal(codigoDeActuador('Quirófano', 'buzzer'), 'BUZZER-QUIROFANO');
+    assert.equal(codigoDeActuador('1', 'rele'), 'RELE-1');
+  });
+
+  test('NO repite el tipo si el nombre ya empieza por él', () => {
+    // Evita "BUZZER-BUZZER-QUIROFANO".
+    assert.equal(codigoDeActuador('Buzzer Quirófano', 'buzzer'), 'BUZZER-QUIROFANO');
+    assert.equal(codigoDeActuador('Rele 1', 'rele'), 'RELE-1');
+  });
+
+  test('normaliza los tipos con guion bajo', () => {
+    // "digital_out" se usa en la base de datos; en el tema MQTT queda mejor
+    // como "DIGITAL-OUT".
+    assert.equal(codigoDeActuador('LED 1', 'digital_out'), 'DIGITAL-OUT-LED-1');
+  });
+
+  test('sin tipo devuelve solo el nombre', () => {
+    assert.equal(codigoDeActuador('Compuerta A'), 'COMPUERTA-A');
+    assert.equal(codigoDeActuador('Compuerta A', null), 'COMPUERTA-A');
+    assert.equal(codigoDeActuador('Compuerta A', ''), 'COMPUERTA-A');
+  });
+
+  test('quita los acentos igual que el resto de identificadores', () => {
+    assert.equal(codigoDeActuador('Relé Quirófano', 'rele'), 'RELE-QUIROFANO');
+  });
+
+  test('nunca devuelve vacío', () => {
+    // El código es obligatorio en la base de datos.
+    assert.equal(codigoDeActuador('', ''), 'ACTUADOR');
+    assert.equal(codigoDeActuador('---', 'rele'), 'RELE');
   });
 });
