@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { PROTOCOLOS_ACTUADOR } from './direccionamiento.js';
+
 /**
  * Esquemas Zod del módulo de actuadores.
  */
@@ -15,6 +17,25 @@ const textoOpcional = (max: number) =>
 const uuidObligatorio = z
   .string()
   .uuid('El id del dispositivo no es válido');
+
+/**
+ * Protocolo de accionamiento.
+ *
+ * Se valida contra la lista real: un valor desconocido caería en el caso por
+ * defecto al construir el direccionamiento y el comando saldría sin destino,
+ * fallando en silencio.
+ */
+const protocolo = z.enum(PROTOCOLOS_ACTUADOR, {
+  message: 'El protocolo debe ser modbus, gpio, mqtt o http',
+});
+
+/**
+ * Direccionamiento del actuador.
+ *
+ * El detalle (dirección Modbus, pin GPIO…) depende del protocolo y se valida
+ * en el servicio. Aquí solo se comprueba que sea un objeto.
+ */
+const configuracion = z.record(z.string(), z.unknown()).optional().nullable();
 
 export const crearActuadorSchema = z.object({
   dispositivo_id: uuidObligatorio,
@@ -38,7 +59,8 @@ export const crearActuadorSchema = z.object({
     .max(50, 'El tipo no puede superar 50 caracteres'),
   estado_actual: textoOpcional(50),
   activo: z.boolean().optional(),
-  configuracion: z.record(z.string(), z.unknown()).optional(),
+  protocolo: protocolo.optional(),
+  configuracion,
 });
 
 export const idActuadorSchema = z.object({
@@ -65,7 +87,8 @@ export const actualizarActuadorSchema = z
       .optional(),
     estado_actual: textoOpcional(50),
     activo: z.boolean().optional(),
-    configuracion: z.record(z.string(), z.unknown()).optional(),
+    protocolo: protocolo.optional(),
+    configuracion,
   })
   .refine((d) => Object.keys(d).length > 0, {
     message: 'Debe proporcionar al menos un campo',

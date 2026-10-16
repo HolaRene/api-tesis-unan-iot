@@ -8,7 +8,7 @@ import type {
 /** Columnas del actuador + relaciones legibles (dispositivo, área). */
 const SELECT_ACTUADOR = `
   a.id, a.dispositivo_id, a.nombre, a.codigo, a.tipo,
-  a.estado_actual, a.activo, a.configuracion, a.creado_en,
+  a.estado_actual, a.activo, a.protocolo, a.configuracion, a.creado_en,
   d.nombre AS dispositivo_nombre,
   d.area_id,
   ar.nombre AS area_nombre
@@ -54,8 +54,8 @@ export const actuadorRepository = {
   async crear(datos: CrearActuadorInput): Promise<ActuadorConRelaciones> {
     const insertado = await query<{ id: string }>(
       `INSERT INTO actuadores
-         (dispositivo_id, nombre, codigo, tipo, estado_actual, activo, configuracion)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6, TRUE), $7)
+         (dispositivo_id, nombre, codigo, tipo, estado_actual, activo, protocolo, configuracion)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, TRUE), COALESCE($7, 'mqtt'), $8)
        RETURNING id`,
       [
         datos.dispositivo_id,
@@ -64,6 +64,7 @@ export const actuadorRepository = {
         datos.tipo,
         datos.estado_actual ?? null,
         datos.activo ?? null,
+        datos.protocolo ?? null,
         datos.configuracion ? JSON.stringify(datos.configuracion) : JSON.stringify({}),
       ]
     );
@@ -90,6 +91,7 @@ export const actuadorRepository = {
     if (datos.tipo !== undefined) agregar('tipo', datos.tipo);
     if (datos.estado_actual !== undefined) agregar('estado_actual', datos.estado_actual);
     if (datos.activo !== undefined) agregar('activo', datos.activo);
+    if (datos.protocolo !== undefined) agregar('protocolo', datos.protocolo);
     if (datos.configuracion !== undefined) {
       agregar('configuracion', JSON.stringify(datos.configuracion));
     }

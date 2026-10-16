@@ -15,6 +15,13 @@ const SELECT_COMANDO = `
   ac.topico_mqtt AS actuador_topico_mqtt,
   ac.estado_actual AS actuador_estado_actual,
   ac.tipo AS actuador_tipo,
+  /*
+   * El protocolo y su direccionamiento viajan con el comando: sin ellos, el
+   * equipo receptor solo recibe el CÓDIGO del actuador y no sabe DÓNDE
+   * accionar. Un PLC no entiende «LED-1»; entiende «coil 100 a 1».
+   */
+  ac.protocolo AS actuador_protocolo,
+  ac.configuracion AS actuador_configuracion,
   di.nombre AS dispositivo_nombre,
   di.identificador AS dispositivo_identificador,
   ar.nombre AS area_nombre,

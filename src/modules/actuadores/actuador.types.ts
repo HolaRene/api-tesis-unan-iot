@@ -10,6 +10,9 @@ export interface Actuador {
   tipo: string;
   estado_actual: string | null;
   activo: boolean;
+  /** Cómo se acciona: `modbus`, `gpio`, `mqtt` o `http`. */
+  protocolo: string;
+  /** Direccionamiento según el protocolo (dirección Modbus, pin GPIO…). */
   configuracion: Record<string, unknown> | null;
   creado_en: Date;
 }
@@ -38,7 +41,10 @@ export interface CrearActuadorInput {
   tipo: string;
   estado_actual?: string | null;
   activo?: boolean;
-  configuracion?: Record<string, unknown>;
+  /** Cómo se acciona: modbus, gpio, mqtt o http. */
+  protocolo?: string;
+  /** Direccionamiento según el protocolo. */
+  configuracion?: Record<string, unknown> | null;
 }
 
 /** Campos actualizables de un actuador. */
@@ -49,5 +55,6 @@ export interface ActualizarActuadorInput {
   tipo?: string;
   estado_actual?: string | null;
   activo?: boolean;
-  configuracion?: Record<string, unknown>;
+  protocolo?: string;
+  configuracion?: Record<string, unknown> | null;
 }

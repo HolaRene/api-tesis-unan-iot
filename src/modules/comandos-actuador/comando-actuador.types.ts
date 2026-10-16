@@ -35,6 +35,15 @@ export interface ComandoActuadorConRelaciones extends ComandoActuador {
   /** Estado actual del actuador ('on', 'off'…), para comparar con la orden. */
   actuador_estado_actual: string | null;
   actuador_tipo: string | null;
+  /**
+   * Cómo se acciona el actuador: `modbus`, `gpio`, `mqtt` o `http`.
+   *
+   * Va en el comando para que quien lo entregue sepa DÓNDE accionar. Sin
+   * esto solo llegaba el código, que un PLC no puede interpretar.
+   */
+  actuador_protocolo: string | null;
+  /** Direccionamiento según el protocolo (dirección Modbus, pin GPIO…). */
+  actuador_configuracion: Record<string, unknown> | null;
   dispositivo_nombre: string | null;
   dispositivo_identificador: string | null;
   area_nombre: string | null;

@@ -12,6 +12,7 @@ import {
   listarPendientesSchema,
 } from '../comandos-actuador/comando-actuador.schema.js';
 import { comandoActuadorService } from '../comandos-actuador/comando-actuador.service.js';
+import { construirDireccionamiento } from '../actuadores/direccionamiento.js';
 import { iotService } from './iot.service.js';
 
 /**
@@ -114,7 +115,25 @@ export const iotController = {
         { identificador, actuadorCodigo: actuador },
         limite ?? 50
       );
-      responderExito(res, comandos, 200);
+
+      /*
+       * A cada comando se le añade el DIRECCIONAMIENTO ya resuelto.
+       *
+       * Sin esto, el receptor solo recibe el código del actuador («LED-1») y
+       * no sabe dónde accionar: un PLC entiende «en la dirección 100, pon un
+       * 1», no un nombre. Se aplana la configuración para que Node-RED pueda
+       * leer `direccionamiento.direccion` directamente, sin navegar dentro de
+       * un objeto genérico.
+       */
+      const conDireccion = comandos.map((c) => ({
+        ...c,
+        direccionamiento: construirDireccionamiento(
+          c.actuador_protocolo ?? 'mqtt',
+          c.actuador_configuracion
+        ),
+      }));
+
+      responderExito(res, conDireccion, 200);
     } catch (error) {
       next(error);
     }

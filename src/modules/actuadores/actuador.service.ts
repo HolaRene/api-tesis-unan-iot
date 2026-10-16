@@ -7,6 +7,7 @@ import type {
 } from './actuador.types.js';
 import { actuadorRepository } from './actuador.repository.js';
 import { codigoDeActuador } from '../../utils/identificadores.js';
+import { validarDireccionamiento } from './direccionamiento.js';
 
 /**
  * Lógica de negocio del módulo de actuadores.
@@ -38,14 +39,49 @@ export const actuadorService = {
    *
    * Se deriva del TIPO y el NOMBRE. Si el cliente envía un `codigo`, se
    * IGNORA en silencio, para no romper versiones antiguas del frontend.
+   *
+   * Además se exige que el DIRECCIONAMIENTO esté completo para su protocolo:
+   * un actuador sin dirección no se puede accionar, porque el comando
+   * llegaría al equipo sin decirle dónde escribir.
    */
   async crear(entrada: CrearActuadorInput): Promise<ActuadorConRelaciones> {
     await this.validarDispositivo(entrada.dispositivo_id);
 
+    const protocolo = entrada.protocolo ?? 'mqtt';
+    this.validarProtocolo(protocolo, entrada.configuracion);
+
     const base = codigoDeActuador(entrada.nombre, entrada.tipo);
     const codigo = await this.codigoDisponible(base);
 
-    return actuadorRepository.crear({ ...entrada, codigo });
+    return actuadorRepository.crear({
+      ...entrada,
+      codigo,
+      protocolo,
+      // MQTT sin configuración explícita es válido: el tema se deriva del
+      // código. Se guarda como objeto vacío para no dejar NULL.
+      configuracion: entrada.configuracion ?? {},
+    });
+  },
+
+  /**
+   * Comprueba que el direccionamiento sea válido para el protocolo.
+   *
+   * Se hace aquí y no en el esquema de Zod porque depende del valor de
+   * `protocolo`: Zod validaría cada campo por separado, sin poder exigir que
+   * Modbus traiga dirección y GPIO traiga pin.
+   *
+   * @throws ApiError.badRequest con la lista de problemas concretos.
+   */
+  validarProtocolo(
+    protocolo: string,
+    configuracion: Record<string, unknown> | null | undefined
+  ): void {
+    const problemas = validarDireccionamiento(protocolo, configuracion);
+    if (problemas.length > 0) {
+      throw ApiError.badRequest(
+        `Direccionamiento incompleto: ${problemas.join('; ')}`
+      );
+    }
   },
 
   /**
@@ -82,6 +118,21 @@ export const actuadorService = {
     }
 
     const { codigo: _ignorado, ...datos } = entrada;
+
+    /*
+     * Si cambia el protocolo o el direccionamiento, se valida la combinacion
+     * RESULTANTE, no solo lo que llega: cambiar el protocolo a modbus sin
+     * enviar direccion dejaria el actuador inaccesible.
+     */
+    if (datos.protocolo !== undefined || datos.configuracion !== undefined) {
+      const actual = await this.obtenerPorId(id);
+      const protocolo = datos.protocolo ?? actual.protocolo ?? 'mqtt';
+      const configuracion =
+        datos.configuracion !== undefined
+          ? datos.configuracion
+          : actual.configuracion;
+      this.validarProtocolo(protocolo, configuracion);
+    }
 
     const actualizado = await actuadorRepository.actualizar(id, datos);
     if (!actualizado) {
