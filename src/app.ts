@@ -57,21 +57,36 @@ export function crearApp(): Express {
       standardHeaders: true,
       legacyHeaders: false,
       /**
-       * Las rutas /iot/* quedan FUERA del límite.
+       * Qué queda FUERA del límite, y por qué.
        *
-       * Por qué: Node-RED (y cualquier equipo) consulta los comandos pendientes
-       * cada 2 s para entregarlos con rapidez. Eso son ~450 peticiones cada
-       * 15 minutos por equipo, muy por encima del límite general pensado para
-       * el navegador.
+       * 1) Rutas /iot/* (máquina a máquina).
        *
-       * Es seguro excluirlas porque:
-       *   - Ya exigen una API Key válida (no son públicas).
-       *   - Son tráfico máquina-a-máquina, no de usuarios.
-       *   - Un límite bajo las rompe sin proteger nada real.
+       * Node-RED consulta los comandos pendientes cada pocos segundos para
+       * entregarlos con rapidez. Eso son cientos de peticiones cada 15 minutos,
+       * muy por encima de un límite pensado para el navegador. Excluirlas es
+       * seguro porque ya exigen una API Key válida.
        *
-       * El resto de la API (login, registro, CRUD…) mantiene su límite.
+       * 2) LECTURAS autenticadas del panel (GET).
+       *
+       * El dashboard se refresca solo: resumen, tarjetas de magnitud,
+       * actividad, actuadores y una mini-serie por cada magnitud. Con dos
+       * pestañas abiertas eso supera cualquier límite razonable — y el
+       * resultado era un 429 que dejaba el panel en blanco sin explicación.
+       *
+       * Solo se excluyen las LECTURAS, y solo si la petición trae credenciales
+       * (token Bearer o cookie). Las escrituras (POST/PATCH/PUT/DELETE) y el
+       * acceso anónimo SIGUEN limitados: ahí es donde importa protegerse de
+       * un abuso o de un ataque de fuerza bruta.
        */
-      skip: (req) => req.path.startsWith(`${VERSION}/iot/`),
+      skip: (req) => {
+        if (req.path.startsWith(`${VERSION}/iot/`)) return true;
+
+        const esLectura = req.method === 'GET' || req.method === 'HEAD';
+        if (!esLectura) return false;
+
+        const credenciales = req.cookies?.token ?? req.headers.authorization;
+        return Boolean(credenciales);
+      },
       message: {
         exito: false,
         mensaje: 'Demasiadas solicitudes. Intente de nuevo más tarde.',

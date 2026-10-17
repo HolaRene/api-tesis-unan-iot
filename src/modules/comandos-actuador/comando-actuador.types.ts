@@ -8,7 +8,16 @@ export type EstadoComandoActuador =
   | 'enviado'
   | 'ejecutado'
   | 'fallido'
-  | 'cancelado';
+  | 'cancelado'
+  /**
+   * Nadie lo recogió a tiempo.
+   *
+   * Un comando encolado deja de tener sentido pasado un rato: accionar el
+   * extractor de un quirófano media hora después de pulsar el botón no es
+   * «ejecutar la orden», es una sorpresa desagradable. Pasado el plazo, un
+   * trabajo periódico lo marca como `expirado` y deja de entregarse.
+   */
+  | 'expirado';
 
 export interface ComandoActuador {
   id: string;

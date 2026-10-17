@@ -171,4 +171,37 @@ export const comandoActuadorRepository = {
     valores.push(id);
     await query(`UPDATE comandos_actuador SET ${sets.join(', ')} WHERE id = $${i}`, valores);
   },
+
+  /**
+   * Marca como `expirado` los comandos que llevan demasiado tiempo pendientes.
+   *
+   * Condiciones para expirar:
+   *   - estado `pendiente`: nadie lo ha recogido todavía.
+   *   - `creado_en` anterior al corte.
+   *
+   * NO se tocan los que están en `enviado`: esos ya salieron hacia el equipo
+   * y esperan confirmación; expirarlos ocultaría una orden quizá ejecutada.
+   *
+   * Se deja constancia en `respuesta` del motivo, para que al revisar el
+   * historial se entienda por qué no se ejecutó.
+   *
+   * Devuelve cuántos comandos se expiraron (0 si ninguno).
+   */
+  async expirarPendientes(minutos: number): Promise<number> {
+    const r = await query(
+      `UPDATE comandos_actuador
+          SET estado = 'expirado',
+              respuesta = COALESCE(respuesta, '{}'::jsonb) ||
+                          jsonb_build_object(
+                            'motivo', 'expirado',
+                            'detalle', 'Nadie recogió el comando dentro del plazo configurado',
+                            'minutos', $1::int
+                          ),
+              ejecutado_en = NOW()
+        WHERE estado = 'pendiente'
+          AND creado_en < NOW() - ($1::int * INTERVAL '1 minute')`,
+      [minutos]
+    );
+    return r.rowCount ?? 0;
+  },
 };

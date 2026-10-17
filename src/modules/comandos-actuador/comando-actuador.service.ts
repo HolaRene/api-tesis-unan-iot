@@ -147,4 +147,18 @@ export const comandoActuadorService = {
       throw ApiError.notFound('Actuador no encontrado');
     }
   },
+
+  /**
+   * Descarta los comandos que nadie recogió a tiempo.
+   *
+   * Lo llama el trabajo periódico (`jobs/comando-expiracion.ts`). No se
+   * expone por HTTP: no es una acción de usuario.
+   *
+   * @param minutos Antigüedad a partir de la cual un comando caduca.
+   * @returns Cuántos comandos se marcaron como expirados.
+   */
+  async expirarPendientes(minutos: number): Promise<number> {
+    if (minutos <= 0) return 0;
+    return comandoActuadorRepository.expirarPendientes(minutos);
+  },
 };

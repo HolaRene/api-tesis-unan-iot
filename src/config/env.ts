@@ -69,15 +69,47 @@ const envSchema = z.object({
   // Secreto para firmar cookies
   COOKIE_SECRET: z.string().min(1, 'COOKIE_SECRET es obligatorio'),
 
-  // Límite de solicitudes por ventana de tiempo (rate limit)
+  /*
+   * Límite de solicitudes por ventana de tiempo (rate limit).
+   *
+   * 100 era demasiado bajo: el dashboard se refresca solo y, sin contar la
+   * navegación, ya consumía la mayor parte del cupo. Con dos pestañas
+   * abiertas la API devolvía 429 y el panel se quedaba en blanco.
+   *
+   * Las lecturas autenticadas ya no cuentan (ver `app.ts`), así que este cupo
+   * queda para escrituras y acceso anónimo: 300 permite trabajar con holgura
+   * sin dejar de frenar un abuso.
+   */
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
 
   // --- Monitorización del estado de dispositivos ---
   // Minutos sin recibir datos tras los cuales un dispositivo pasa a 'offline'.
   DEVICE_OFFLINE_MINUTOS: z.coerce.number().int().positive().default(5),
   // Intervalo (segundos) del job que revisa dispositivos caídos. 0 = desactivado.
   DEVICE_WATCHDOG_INTERVALO_SEG: z.coerce.number().int().nonnegative().default(60),
+
+  /*
+   * EXPIRACIÓN DE COMANDOS.
+   *
+   * Minutos que un comando puede esperar a que alguien lo recoja antes de
+   * darse por perdido. Pasado ese plazo pasa a `expirado` y deja de
+   * entregarse: accionar un equipo por una orden de hace media hora es
+   * peor que no accionarlo.
+   *
+   * 2 minutos por defecto: Node-RED consulta cada 2 s, así que un comando
+   * sano se recoge en segundos. Si no lo hace en 2 minutos, es que algo se
+   * rompió (Node-RED caído, API Key revocada, red cortada).
+   *
+   * `0` desactiva la expiración.
+   */
+  COMANDO_EXPIRACION_MINUTOS: z.coerce.number().int().nonnegative().default(2),
+  // Intervalo (segundos) del job que expira comandos. 0 = desactivado.
+  COMANDO_EXPIRACION_INTERVALO_SEG: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(30),
 });
 
 /**

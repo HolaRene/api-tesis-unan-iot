@@ -6,6 +6,10 @@ import {
   iniciarWatchdogDispositivos,
 } from './jobs/device-watchdog.js';
 import {
+  detenerExpiracionComandos,
+  iniciarExpiracionComandos,
+} from './jobs/comando-expiracion.js';
+import {
   cerrarServidorRealtime,
   montarServidorRealtime,
 } from './realtime/websocket.servidor.js';
@@ -25,6 +29,8 @@ async function iniciarServidor(): Promise<void> {
     );
     // Job de monitorización: marca offline los dispositivos sin contacto.
     iniciarWatchdogDispositivos();
+    // Job de seguridad: descarta comandos que nadie recogió a tiempo.
+    iniciarExpiracionComandos();
   });
 
   // Capa realtime: WebSocket sobre el mismo servidor HTTP.
@@ -34,6 +40,7 @@ async function iniciarServidor(): Promise<void> {
   const apagar = async (senal: string): Promise<void> => {
     console.log(`[api] Recibida señal ${senal}, cerrando servidor...`);
     detenerWatchdogDispositivos();
+    detenerExpiracionComandos();
     await cerrarServidorRealtime();
     servidor.close(async () => {
       await closePool();
