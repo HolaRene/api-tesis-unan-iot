@@ -8,6 +8,7 @@ import type {
 import { alertRepository } from './alert.repository.js';
 import { reglaRepository } from '../reglas-alerta/regla-alerta.repository.js';
 import type { Measurement } from '../measurements/measurement.types.js';
+import { cumpleCondicion, decidirConRetardo } from './motor-alertas.js';
 import {
   emitirAlertaCreada,
   emitirAlertaResuelta,
@@ -107,10 +108,43 @@ export const alertService = {
     if (!medicion.canal_id) return;
     const reglas = await reglaRepository.listar({ canal_id: medicion.canal_id, activa: true });
     for (const regla of reglas) {
-      const cumple = evaluarRegla(regla, medicion);
-      if (cumple) {
-        const activa = await alertRepository.buscarActivaPorRegla(regla.id);
-        if (!activa) {
+      /*
+       * Motor con retardo e histéresis (ISA-18.2).
+       *
+       * Antes bastaba `evaluarRegla`: si cumple abre, si no cierra. Eso
+       * hacía que cualquier valor oscilando en el borde generase una alerta
+       * por medición.
+       *
+       * Ahora se decide en tres pasos:
+       *   - Si hay alerta abierta: se mantiene mientras el valor siga en la
+       *     zona de alarma AMPLIADA por la histéresis, y solo se resuelve al
+       *     volver de verdad a la banda.
+       *   - Si no la hay y la condición se cumple: se arranca (o se consulta)
+       *     el cronómetro del retardo.
+       *   - Solo se abre cuando el cronómetro supera `retardo_segundos`.
+       */
+      const activa = await alertRepository.buscarActivaPorRegla(regla.id);
+      const valorNumerico = medicion.valor_numerico;
+
+      let decision: ReturnType<typeof decidirConRetardo>;
+
+      if (cumpleCondicion(regla, valorNumerico)) {
+        // La condición se cumple: el cronómetro corre desde la primera vez.
+        await alertRepository.marcarInicioRetardo(regla.id);
+      }
+
+      const desde = activa ? null : await alertRepository.obtenerInicioRetardo(regla.id);
+
+      decision = decidirConRetardo(
+        regla,
+        valorNumerico,
+        new Date(medicion.registrado_en ?? Date.now()),
+        activa ? { estado: activa.estado, iniciada_en: activa.iniciada_en } : null,
+        desde
+      );
+
+      if (decision.accion === 'abrir') {
+        {
           const valor = valorDisparador(regla, medicion);
           // La alerta ya está persistida (COMMIT): se emite ahora.
           const creada = await alertRepository.crearDesdeRegla({
@@ -122,9 +156,11 @@ export const alertService = {
             ...valor,
           });
           emitirAlertaCreada(creada);
+          // Al abrir, el cronómetro deja de tener sentido.
+          await alertRepository.limpiarInicioRetardo(regla.id);
         }
         // Ya había una alerta activa para la regla: NO se duplica el evento.
-      } else {
+      } else if (decision.accion === 'resolver') {
         // Al dejar de cumplirse, se resuelven las activas de esa regla.
         // `resolverPorRegla` devuelve solo las que realmente cambiaron, así que
         // reejecutar sin cambios no emite nada.
@@ -132,7 +168,12 @@ export const alertService = {
         for (const resuelta of resueltas) {
           emitirAlertaResuelta(resuelta);
         }
+        await alertRepository.limpiarInicioRetardo(regla.id);
+      } else if (decision.accion === 'nada') {
+        // No se cumple y no había alerta: se descarta el cronómetro, si lo hubiera.
+        await alertRepository.limpiarInicioRetardo(regla.id);
       }
+      // 'esperar' y 'mantener': no se hace nada hasta la próxima medición.
     }
   },
 
@@ -165,39 +206,6 @@ export const alertService = {
 };
 
 /** Evalúa si la regla (según tipo de dato del canal) se cumple con la medición. */
-function evaluarRegla(
-  regla: import('../reglas-alerta/regla-alerta.types.js').FilaReglaDetalle,
-  m: Measurement
-): boolean {
-  const tipo = (regla.tipo_dato ?? 'text').toLowerCase();
-  if (tipo === 'numeric') {
-    const v = m.valor_numerico;
-    if (v === null || v === undefined) return false;
-    const o = regla.operador;
-    if (o === '>') return v > (regla.valor_referencia_numerico ?? 0);
-    if (o === '>=') return v >= (regla.valor_referencia_numerico ?? 0);
-    if (o === '<') return v < (regla.valor_referencia_numerico ?? 0);
-    if (o === '<=') return v <= (regla.valor_referencia_numerico ?? 0);
-    if (o === '=') return v === (regla.valor_referencia_numerico ?? 0);
-    if (o === 'entre')
-      return regla.valor_min !== null && regla.valor_max !== null && v >= regla.valor_min && v <= regla.valor_max;
-    if (o === 'fuera_de_rango')
-      return regla.valor_min !== null && regla.valor_max !== null && (v < regla.valor_min || v > regla.valor_max);
-    return false;
-  }
-  if (tipo === 'boolean') {
-    const b = m.valor_booleano;
-    if (regla.operador === 'es_true') return b === true;
-    if (regla.operador === 'es_false') return b === false;
-    return false;
-  }
-  const texto = (m.valor_texto ?? '').toString();
-  const ref = (regla.valor_referencia_texto ?? '').toString();
-  if (regla.operador === 'igual_a') return texto === ref;
-  if (regla.operador === 'diferente_de') return texto !== ref;
-  if (regla.operador === 'contiene') return texto.includes(ref);
-  return false;
-}
 
 /** Valor disparador de la alerta según tipo de dato. */
 function valorDisparador(

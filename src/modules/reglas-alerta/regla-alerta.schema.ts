@@ -86,6 +86,8 @@ export const crearReglaSchema = z
     mensaje: opcTexto(2000),
     activa: z.boolean().optional(),
     retardo_segundos: z.coerce.number().int().positive().optional().nullable(),
+    // Margen para cerrar la alerta. 0 o null = sin margen.
+    histeresis: z.coerce.number().nonnegative().optional().nullable(),
   })
   .superRefine(validarRango);
 
@@ -104,6 +106,8 @@ export const actualizarReglaSchema = z
     mensaje: opcTexto(2000),
     activa: z.boolean().optional(),
     retardo_segundos: z.coerce.number().int().positive().optional().nullable(),
+    // Margen para cerrar la alerta. 0 o null = sin margen.
+    histeresis: z.coerce.number().nonnegative().optional().nullable(),
   })
   .refine((d) => Object.keys(d).length > 0, {
     message: 'Debe enviar al menos un campo',

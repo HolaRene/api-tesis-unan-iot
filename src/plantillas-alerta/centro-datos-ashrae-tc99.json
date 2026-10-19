@@ -1,0 +1,72 @@
+{
+  "id": "centro-datos-ashrae-tc99",
+  "nombre": "Centro de datos (ASHRAE TC 9.9)",
+  "descripcion": "Sala de servidores con la envolvente recomendada por ASHRAE TC 9.9 para equipos clase A1.",
+  "norma": "ASHRAE TC 9.9 — Directrices térmicas para centros de datos",
+  "notas": [
+    "18–27 °C es la envolvente RECOMENDADA por TC 9.9 para equipos clase A1.",
+    "El punto de rocío se mantiene entre −9 y 15 °C y la humedad relativa no debe superar el 60 %.",
+    "TC 9.9 NO aplica a quirófanos ni a salas limpias.",
+    "La humedad relativa tiene un máximo normativo (60 %) pero no un mínimo único: el límite inferior lo fija el punto de rocío. Aquí se usa 20 % como referencia operativa [verificar].",
+    "Los retardos e histéresis son propuestas del proyecto."
+  ],
+  "reglas": [
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura fuera de la envolvente",
+      "operador": "fuera_de_rango",
+      "valor_min": 18,
+      "valor_max": 27,
+      "severidad": "warning",
+      "retardo_segundos": 60,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura fuera de la envolvente recomendada (18–27 °C)"
+    },
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura crítica",
+      "operador": "fuera_de_rango",
+      "valor_min": 15,
+      "valor_max": 32,
+      "severidad": "critical",
+      "retardo_segundos": 60,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura en zona de apagado del equipo"
+    },
+    {
+      "variable": "humedad_relativa",
+      "tipos_variable": ["HUMEDAD_RELATIVA"],
+      "nombre": "Humedad relativa alta",
+      "operador": ">",
+      "valor_referencia_numerico": 60,
+      "severidad": "warning",
+      "retardo_segundos": 120,
+      "histeresis": 2,
+      "mensaje": "Humedad relativa por encima del 60 %: riesgo de condensación"
+    },
+    {
+      "variable": "humedad_relativa",
+      "tipos_variable": ["HUMEDAD_RELATIVA"],
+      "nombre": "Humedad relativa baja",
+      "operador": "<",
+      "valor_referencia_numerico": 20,
+      "severidad": "warning",
+      "retardo_segundos": 120,
+      "histeresis": 2,
+      "mensaje": "Humedad relativa por debajo del 20 %: riesgo de descarga electrostática [verificar]"
+    },
+    {
+      "variable": "co2",
+      "tipos_variable": ["CO2"],
+      "nombre": "CO2 elevado en sala",
+      "operador": ">",
+      "valor_referencia_numerico": 1000,
+      "severidad": "info",
+      "retardo_segundos": 300,
+      "histeresis": 50,
+      "mensaje": "CO2 por encima de la referencia de ventilación"
+    }
+  ]
+}

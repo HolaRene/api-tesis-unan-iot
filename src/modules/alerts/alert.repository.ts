@@ -104,9 +104,42 @@ export const alertRepository = {
   },
 
   /** Busca una alerta activa para una regla (para no duplicar). */
+  /**
+   * Marca el instante en que la condición de una regla empezó a cumplirse.
+   *
+   * Solo se escribe la PRIMERA vez: mientras la condición siga cumpliéndose
+   * no se toca, porque el retardo se cuenta desde ahí. Si la condición deja
+   * de cumplirse, el servicio la borra.
+   *
+   * Se apoya en `alertas_retardo`, una tabla auxiliar que no guarda alertas
+   * sino el cronómetro de las que aún no han abierto.
+   */
+  async marcarInicioRetardo(reglaId: string): Promise<void> {
+    await query(
+      `INSERT INTO alertas_retardo (regla_id, desde)
+       VALUES ($1, NOW())
+       ON CONFLICT (regla_id) DO NOTHING`,
+      [reglaId]
+    );
+  },
+
+  /** Instante en que empezó a cumplirse la condición, si está en curso. */
+  async obtenerInicioRetardo(reglaId: string): Promise<Date | null> {
+    const r = await query<{ desde: Date }>(
+      `SELECT desde FROM alertas_retardo WHERE regla_id = $1`,
+      [reglaId]
+    );
+    return r.rows[0]?.desde ?? null;
+  },
+
+  /** Borra el cronómetro cuando la condición deja de cumplirse. */
+  async limpiarInicioRetardo(reglaId: string): Promise<void> {
+    await query(`DELETE FROM alertas_retardo WHERE regla_id = $1`, [reglaId]);
+  },
+
   async buscarActivaPorRegla(reglaId: string): Promise<Alert | null> {
     const r = await query<Alert>(
-      `SELECT * FROM alertas WHERE regla_id = $1 AND estado = 'active' ORDER BY iniciada_en DESC LIMIT 1`,
+      `SELECT * FROM alertas WHERE regla_id = $1 AND estado IN ('active','acknowledged') ORDER BY iniciada_en DESC LIMIT 1`,
       [reglaId]
     );
     return r.rows[0] ?? null;

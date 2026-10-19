@@ -1,0 +1,83 @@
+{
+  "id": "sala-limpia-iso-14644",
+  "nombre": "Sala limpia farmacéutica (ISO 14644 / GMP)",
+  "descripcion": "Sala limpia con clasificación de partículas ISO 14644-1 y presión diferencial entre zonas según EU GMP Anexo 1.",
+  "norma": "ISO 14644-1 (clases de partículas) · ISO 14644-3/-4 (ensayo y diseño) · EU GMP Anexo 1",
+  "notas": [
+    "Los límites de partículas son los de la tabla de ISO 14644-1:2015 para la clase declarada del recinto.",
+    "ISO 14644-1 NO fija límites de temperatura ni de presión: la temperatura depende de la especificación de usuario del proyecto.",
+    "Los 10–15 Pa entre zonas de distinta clase proceden de EU GMP Anexo 1 y deben confirmarse en el texto oficial [verificar].",
+    "Ajusta 'valor_max' de partículas a la clase real de tu sala antes de aplicar la plantilla.",
+    "Los retardos e histéresis son propuestas del proyecto, no de la norma."
+  ],
+  "reglas": [
+    {
+      "variable": "particulas_0_5",
+      "tipos_variable": ["PARTICULAS_05", "PARTICULAS"],
+      "nombre": "Partículas por encima de ISO 7",
+      "operador": ">",
+      "valor_referencia_numerico": 352000,
+      "severidad": "warning",
+      "retardo_segundos": 300,
+      "histeresis": 17600,
+      "mensaje": "Partículas ≥ 0,5 µm por encima del límite ISO 7 (352 000/m³)"
+    },
+    {
+      "variable": "particulas_0_5",
+      "tipos_variable": ["PARTICULAS_05", "PARTICULAS"],
+      "nombre": "Partículas: doble del límite",
+      "operador": ">",
+      "valor_referencia_numerico": 704000,
+      "severidad": "critical",
+      "retardo_segundos": 300,
+      "histeresis": 35200,
+      "mensaje": "Partículas ≥ 0,5 µm al doble del límite ISO 7"
+    },
+    {
+      "variable": "presion_diferencial",
+      "tipos_variable": ["PRESION"],
+      "nombre": "Presión diferencial baja",
+      "operador": "<",
+      "valor_referencia_numerico": 10,
+      "severidad": "warning",
+      "retardo_segundos": 30,
+      "histeresis": 0.5,
+      "mensaje": "Presión diferencial por debajo de 10 Pa [verificar]"
+    },
+    {
+      "variable": "presion_diferencial",
+      "tipos_variable": ["PRESION"],
+      "nombre": "Presión diferencial crítica",
+      "operador": "<",
+      "valor_referencia_numerico": 5,
+      "severidad": "critical",
+      "retardo_segundos": 30,
+      "histeresis": 0.5,
+      "mensaje": "Presión diferencial críticamente baja: riesgo de contaminación cruzada"
+    },
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura fuera de especificación",
+      "operador": "fuera_de_rango",
+      "valor_min": 18,
+      "valor_max": 24,
+      "severidad": "warning",
+      "retardo_segundos": 120,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura fuera de la especificación del proyecto (18–24 °C) [verificar]"
+    },
+    {
+      "variable": "humedad_relativa",
+      "tipos_variable": ["HUMEDAD_RELATIVA"],
+      "nombre": "Humedad relativa fuera de rango",
+      "operador": "fuera_de_rango",
+      "valor_min": 30,
+      "valor_max": 60,
+      "severidad": "warning",
+      "retardo_segundos": 120,
+      "histeresis": 2,
+      "mensaje": "Humedad relativa fuera de 30 a 60 % [verificar]"
+    }
+  ]
+}

@@ -15,6 +15,8 @@ export interface ReglaAlerta {
   mensaje: string | null;
   activa: boolean;
   retardo_segundos: number | null;
+  /** Margen para cerrar la alerta. Solo numéricas. */
+  histeresis: number | null;
   creado_en: Date;
   actualizado_en: Date;
 }
@@ -35,6 +37,8 @@ export interface FilaReglaDetalle {
   mensaje: string | null;
   activa: boolean;
   retardo_segundos: number | null;
+  /** Margen para cerrar la alerta una vez vuelve a la banda. */
+  histeresis: number | null;
   // relaciones
   canal_codigo?: string | null;
   canal_nombre?: string | null;
@@ -60,6 +64,8 @@ export interface CrearReglaInput {
   mensaje?: string | null;
   activa?: boolean;
   retardo_segundos?: number | null;
+  /** Margen para cerrar la alerta. Solo numéricas. */
+  histeresis?: number | null;
 }
 
 export interface ActualizarReglaInput {
@@ -76,6 +82,8 @@ export interface ActualizarReglaInput {
   mensaje?: string | null;
   activa?: boolean;
   retardo_segundos?: number | null;
+  /** Margen para cerrar la alerta. Solo numéricas. */
+  histeresis?: number | null;
 }
 
 export interface FiltroReglas {

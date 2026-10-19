@@ -10,6 +10,7 @@ const COLUMNAS = `
   r.id, r.canal_id, r.nombre, r.descripcion, r.operador,
   r.valor_referencia_numerico, r.valor_referencia_texto, r.valor_referencia_booleano,
   r.valor_min, r.valor_max, r.severidad, r.mensaje, r.activa, r.retardo_segundos,
+  r.histeresis,
   r.creado_en, r.actualizado_en,
   c.codigo AS canal_codigo, c.nombre AS canal_nombre, c.unidad AS canal_unidad,
   tv.nombre AS tipo_nombre, tv.tipo_dato AS tipo_dato,
@@ -58,14 +59,15 @@ export const reglaRepository = {
       `INSERT INTO reglas_alerta
         (canal_id, nombre, descripcion, operador, valor_referencia_numerico,
          valor_referencia_texto, valor_referencia_booleano, valor_min, valor_max,
-         severidad, mensaje, activa, retardo_segundos)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, COALESCE($12, TRUE), $13)
+         severidad, mensaje, activa, retardo_segundos, histeresis)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, COALESCE($12, TRUE), $13, $14)
        RETURNING id`,
       [
         d.canal_id, d.nombre, d.descripcion ?? null, d.operador,
         d.valor_referencia_numerico ?? null, d.valor_referencia_texto ?? null,
         d.valor_referencia_booleano ?? null, d.valor_min ?? null, d.valor_max ?? null,
         d.severidad, d.mensaje ?? null, d.activa ?? null, d.retardo_segundos ?? null,
+        d.histeresis ?? null,
       ]
     );
     const fila = await this.buscarPorId(ins.rows[0].id);
@@ -90,6 +92,7 @@ export const reglaRepository = {
     if (d.mensaje !== undefined) p('mensaje', d.mensaje);
     if (d.activa !== undefined) p('activa', d.activa);
     if (d.retardo_segundos !== undefined) p('retardo_segundos', d.retardo_segundos);
+    if (d.histeresis !== undefined) p('histeresis', d.histeresis);
 
     if (sets.length === 0) return this.buscarPorId(id);
     vals.push(id);

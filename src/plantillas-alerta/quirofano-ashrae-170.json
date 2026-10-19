@@ -1,0 +1,95 @@
+{
+  "id": "quirofano-ashrae-170",
+  "nombre": "Quirófano (ASHRAE 170)",
+  "descripcion": "Monitorización ambiental de quirófano según ASHRAE 170. Temperatura 20–24 °C y humedad relativa 20–60 %.",
+  "norma": "ASHRAE 170 — Ventilación de instalaciones de salud",
+  "notas": [
+    "Los límites de temperatura y humedad están confirmados en ASHRAE 170.",
+    "El umbral de presión positiva (2,5 Pa) procede de conocimiento general: [verificar] con la edición vigente.",
+    "ASHRAE 170 NO define cómo alarmar: retardos, histéresis y severidades son propuestas del proyecto.",
+    "CO2 no tiene límite normativo aquí; 1000 ppm es una referencia habitual de ventilación."
+  ],
+  "reglas": [
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura fuera de rango",
+      "operador": "fuera_de_rango",
+      "valor_min": 20,
+      "valor_max": 24,
+      "severidad": "warning",
+      "retardo_segundos": 60,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura fuera de 20 a 24 °C"
+    },
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura crítica",
+      "operador": "fuera_de_rango",
+      "valor_min": 18,
+      "valor_max": 26,
+      "severidad": "critical",
+      "retardo_segundos": 60,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura crítica: más de 2 °C fuera de la banda"
+    },
+    {
+      "variable": "humedad_relativa",
+      "tipos_variable": ["HUMEDAD_RELATIVA"],
+      "nombre": "Humedad relativa fuera de rango",
+      "operador": "fuera_de_rango",
+      "valor_min": 20,
+      "valor_max": 60,
+      "severidad": "warning",
+      "retardo_segundos": 120,
+      "histeresis": 2,
+      "mensaje": "Humedad relativa fuera de 20 a 60 %"
+    },
+    {
+      "variable": "humedad_relativa",
+      "tipos_variable": ["HUMEDAD_RELATIVA"],
+      "nombre": "Humedad relativa crítica",
+      "operador": "fuera_de_rango",
+      "valor_min": 10,
+      "valor_max": 70,
+      "severidad": "critical",
+      "retardo_segundos": 120,
+      "histeresis": 2,
+      "mensaje": "Humedad relativa críticamente fuera de rango"
+    },
+    {
+      "variable": "presion_diferencial",
+      "tipos_variable": ["PRESION"],
+      "nombre": "Presión positiva insuficiente",
+      "operador": "<",
+      "valor_referencia_numerico": 2.5,
+      "severidad": "warning",
+      "retardo_segundos": 30,
+      "histeresis": 0.5,
+      "mensaje": "Presión positiva por debajo de 2,5 Pa [verificar]"
+    },
+    {
+      "variable": "presion_diferencial",
+      "tipos_variable": ["PRESION"],
+      "nombre": "Presión invertida",
+      "operador": "<=",
+      "valor_referencia_numerico": 0,
+      "severidad": "critical",
+      "retardo_segundos": 30,
+      "histeresis": 0.5,
+      "mensaje": "Presión invertida: puede entrar aire de zonas contiguas"
+    },
+    {
+      "variable": "co2",
+      "tipos_variable": ["CO2"],
+      "nombre": "CO2 elevado",
+      "operador": ">",
+      "valor_referencia_numerico": 1000,
+      "severidad": "warning",
+      "retardo_segundos": 300,
+      "histeresis": 50,
+      "mensaje": "CO2 por encima de la referencia de ventilación (no normativo)"
+    }
+  ]
+}

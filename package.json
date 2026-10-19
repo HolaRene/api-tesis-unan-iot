@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node -e \"const fs=require('fs');fs.cpSync('src/plantillas-alerta','dist/plantillas-alerta',{recursive:true});console.log('[build] plantillas copiadas a dist/');\"",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",

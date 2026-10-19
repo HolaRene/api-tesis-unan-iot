@@ -17,6 +17,7 @@ import variableTypeRoutes from './modules/variable-types/variable-type.routes.js
 import sensorRoutes from './modules/sensors/sensor.routes.js';
 import canalRoutes from './modules/canales/canal.routes.js';
 import reglaAlertRoutes from './modules/reglas-alerta/regla-alerta.routes.js';
+import plantillaAlertaRoutes from './modules/plantillas-alerta/plantilla-alerta.routes.js';
 import measurementRoutes from './modules/measurements/measurement.routes.js';
 import thresholdRoutes from './modules/thresholds/threshold.routes.js';
 import alertRoutes from './modules/alerts/alert.routes.js';
@@ -103,6 +104,7 @@ export function crearApp(): Express {
   app.use(`${VERSION}/sensors`, sensorRoutes);
   app.use(`${VERSION}/canales`, canalRoutes);
   app.use(`${VERSION}/reglas-alerta`, reglaAlertRoutes);
+  app.use(`${VERSION}/plantillas-alerta`, plantillaAlertaRoutes);
   app.use(`${VERSION}/measurements`, measurementRoutes);
   app.use(`${VERSION}/thresholds`, thresholdRoutes);
   app.use(`${VERSION}/alerts`, alertRoutes);

@@ -1,0 +1,61 @@
+{
+  "id": "cadena-frio-vacunas",
+  "nombre": "Cadena de frío (vacunas y medicamentos)",
+  "descripcion": "Conservación de vacunas y medicamentos termolábiles entre 2 y 8 °C, y congelados por debajo de −18 °C.",
+  "norma": "Reglamento sanitario aplicable / ficha técnica del producto",
+  "notas": [
+    "2 a 8 °C es el rango habitual de vacunas en refrigerador, pero el rango DEFINITIVO lo fija la ficha del producto y la autoridad sanitaria. [verificar]",
+    "Los alimentos refrigerados se conservan a 5 °C o menos y los congelados a −18 °C o menos: son criterios distintos y no deben mezclarse con el de vacunas en la misma cámara. [verificar]",
+    "Tolerancia de monitoreo: muchas autoridades aceptan 0 a 8 °C para ajuste de histéresis; confírmalo antes de aplicarlo. [verificar]",
+    "Aquí se usa el perfil de vacunas (2–8 °C). Para alimentos refrigerados duplica la plantilla con el criterio de 5 °C."
+  ],
+  "reglas": [
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura fuera de 2 a 8 °C",
+      "operador": "fuera_de_rango",
+      "valor_min": 2,
+      "valor_max": 8,
+      "severidad": "warning",
+      "retardo_segundos": 60,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura fuera del rango de conservación (2–8 °C)"
+    },
+    {
+      "variable": "temperatura",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Temperatura crítica: producto comprometido",
+      "operador": "fuera_de_rango",
+      "valor_min": 0,
+      "valor_max": 10,
+      "severidad": "critical",
+      "retardo_segundos": 60,
+      "histeresis": 0.5,
+      "mensaje": "Temperatura fuera del margen tolerable: revise la cadena de frío"
+    },
+    {
+      "variable": "congelado",
+      "tipos_variable": ["TEMPERATURA"],
+      "nombre": "Congelado descongelado",
+      "operador": ">",
+      "valor_referencia_numerico": -18,
+      "severidad": "critical",
+      "retardo_segundos": 120,
+      "histeresis": 1,
+      "mensaje": "Temperatura por encima de −18 °C en cámara de congelados [verificar]"
+    },
+    {
+      "variable": "humedad_relativa",
+      "tipos_variable": ["HUMEDAD_RELATIVA"],
+      "nombre": "Humedad relativa fuera de rango",
+      "operador": "fuera_de_rango",
+      "valor_min": 30,
+      "valor_max": 75,
+      "severidad": "info",
+      "retardo_segundos": 300,
+      "histeresis": 3,
+      "mensaje": "Humedad relativa fuera del rango de referencia [verificar]"
+    }
+  ]
+}
