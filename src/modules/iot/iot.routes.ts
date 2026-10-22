@@ -62,11 +62,10 @@ router.get(
 
 // Configuracion de latencia/timeout por actuador (la lee Node-RED).
 router.get(
-  '/actuadores/configuracion',
-  verificarPermisosApi('mediciones:crear'),
-  iotController.configuracionActuadores
+  '/comandos/pendientes',
+  verificarPermisosApi('comandos:enviar'),
+  iotController.comandosPendientes
 );
-
 // Confirmación de entrega / ejecución de un comando
 router.patch(
   '/comandos/:id',
