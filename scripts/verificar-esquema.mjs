@@ -149,12 +149,16 @@ async function principal() {
     // Migraciones únicas, en orden.
     const necesarias = [...new Set(faltantes.map((f) => f.migracion))].sort();
     console.error('');
-    console.error('  Ejecuta, en orden:');
+    console.error('  Aplícalas con:');
+    console.error('');
+    console.error('     pnpm migrate:forzar');
+    console.error('');
+    console.error('  (no requiere psql: usa el driver de la propia API)');
+    console.error('');
+    console.error('  O una a una, si prefieres verlas:');
     console.error('');
     for (const m of necesarias) {
-      console.error(
-        `     psql "$DATABASE_URL" -f src/database/migrations/${m}_*.sql`
-      );
+      console.error(`     pnpm migrate:forzar --solo ${m}`);
     }
     console.error('');
     process.exit(1);

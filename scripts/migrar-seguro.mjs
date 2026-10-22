@@ -58,6 +58,32 @@ const BASELINE = args.includes('--baseline');
 const PERMITIR_DESTRUCTIVAS = args.includes('--permitir-destructivas');
 
 /**
+ * Migraciones que borran datos.
+ *
+ * `--forzar` las salta SIEMPRE, pase lo que pase: re-ejecutar la 0009 haría
+ * un TRUNCATE de 11 tablas. Si alguna vez hiciera falta volver a sembrar los
+ * tipos de variable (0010), hay que hacerlo a propósito y a mano.
+ */
+const DESTRUCTIVAS_CONOCIDAS = [
+  '0009_canales.sql',
+  '0010_tipos_variable_seed.sql',
+];
+
+/**
+ * `--solo 0017` aplica únicamente esa migración.
+ * `--forzar`      aplica aunque falten migraciones anteriores en el registro.
+ *
+ * `--forzar` existe para el caso «el baseline se hizo cuando no tocaba»: la
+ * tabla de control dice que todo está aplicado, pero la base real no tiene
+ * las columnas. Con `--forzar` se vuelven a ejecutar, y como todas las
+ * migraciones del proyecto son idempotentes (`IF NOT EXISTS`), repetirlas
+ * no hace daño.
+ */
+const indiceSolo = args.indexOf('--solo');
+const SOLO = indiceSolo !== -1 ? args[indiceSolo + 1] : null;
+const FORZAR = args.includes('--forzar');
+
+/**
  * Sentencias que destruyen datos.
  *
  * Se detectan ANTES de ejecutar. La 0009 y la 0010 las contienen, así que
@@ -202,7 +228,27 @@ async function principal() {
     );
 
     const todas = listarMigraciones();
-    const pendientes = todas.filter((m) => !aplicadas.has(m));
+    let pendientes = todas.filter((m) => !aplicadas.has(m));
+
+    /*
+     * --forzar: se ignoran las ya registradas y se re-ejecutan.
+     *
+     * PERO las destructivas quedan EXCLUIDAS siempre. `--forzar` existe para
+     * recuperar una base a la que le faltan columnas, y re-ejecutar la 0009
+     * (TRUNCATE) en ese proceso borraría todos los datos del usuario.
+     */
+    if (FORZAR) {
+      pendientes = todas.filter(
+        (m) => !DESTRUCTIVAS_CONOCIDAS.includes(m)
+      );
+    }
+
+    // --solo 0017: únicamente las migraciones de ese prefijo.
+    if (SOLO) pendientes = pendientes.filter((m) => m.startsWith(SOLO));
+    if (SOLO && pendientes.length === 0) {
+      console.error(`  ERROR: no hay migraciones que empiecen por "${SOLO}".`);
+      process.exit(1);
+    }
 
     console.log(`  Migraciones en disco: ${todas.length}`);
     console.log(`  Ya aplicadas:         ${aplicadas.size}`);

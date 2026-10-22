@@ -19,7 +19,10 @@
     "migrate:dry": "node scripts/migrar-seguro.mjs --dry-run",
     "migrate:baseline": "node scripts/migrar-seguro.mjs --baseline",
     "respaldar": "node scripts/respaldar.mjs",
-    "esquema": "node scripts/verificar-esquema.mjs"
+    "esquema": "node scripts/verificar-esquema.mjs",
+    "migrate:forzar": "node scripts/migrar-seguro.mjs --forzar --permitir-destructivas",
+    "restaurar": "node scripts/restaurar.mjs",
+    "desmarcar": "node scripts/desmarcar.mjs"
   },
   "keywords": [
     "iot",
