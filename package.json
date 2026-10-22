@@ -10,13 +10,15 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.build.json && node -e \"const fs=require('fs');fs.cpSync('src/plantillas-alerta','dist/plantillas-alerta',{recursive:true});console.log('[build] plantillas copiadas a dist/');\"",
+    "build": "node scripts/build.mjs",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node scripts/test.mjs",
     "seed": "tsx scripts/seed.ts",
-    "migrate": "tsx scripts/migrate.ts",
-    "migrate:bash": "bash scripts/migrate.sh"
+    "migrate": "node scripts/migrar-seguro.mjs",
+    "migrate:dry": "node scripts/migrar-seguro.mjs --dry-run",
+    "migrate:baseline": "node scripts/migrar-seguro.mjs --baseline",
+    "respaldar": "node scripts/respaldar.mjs"
   },
   "keywords": [
     "iot",

@@ -117,7 +117,6 @@ La API centraliza y valida todas las variables de entorno con **Zod** en `src/co
 | `pnpm build` | Compila el proyecto a `dist/` |
 | `pnpm start` | Ejecuta el servidor compilado desde `dist/` |
 | `pnpm migrate` | Aplica las migraciones SQL de `src/database/migrations` (multiplataforma) |
-| `pnpm migrate:bash` | Variante antigua en `bash` (requiere `psql`; solo Linux/macOS) |
 | `pnpm seed` | Crea el usuario administrador inicial |
 
 ## Estructura
@@ -188,10 +187,25 @@ pnpm migrate
 > `tipos_variable`).
 >
 > - Base **recién creada** → úsalo sin problema.
-> - Base **con datos** → aplica a mano solo el archivo nuevo:
->   `psql "$DATABASE_URL" -f src/database/migrations/00XX_nombre.sql`
->
-> Guía completa: [`docs/instalacion-computadora-nueva.md`](../docs/instalacion-computadora-nueva.md)
+> - Base **con datos** → usa el runner seguro (abajo).
+
+### Migraciones seguras (recomendado)
+
+El script lleva una tabla `_migraciones_aplicadas` y ejecuta **solo lo que
+falta**. Además **detecta `TRUNCATE`/`DELETE`/`DROP` y se niega a ejecutarlos**.
+
+```bash
+pnpm respaldar         # copia de seguridad verificada
+pnpm migrate:dry       # muestra qué haría, sin ejecutar
+pnpm migrate:baseline  # PRIMERA VEZ: marca lo existente sin ejecutarlo
+pnpm migrate           # aplica solo lo pendiente
+```
+
+**Primera vez en una base con datos**: `pnpm migrate:baseline`, para que la
+`0009` y la `0010` (que hacen `TRUNCATE` y `DELETE`) no se ejecuten nunca.
+
+> Guía paso a paso: [`docs/aplicar-migraciones-sin-perder-datos.md`](../docs/aplicar-migraciones-sin-perder-datos.md)
+
 
 ### Eliminación en cascada
 
