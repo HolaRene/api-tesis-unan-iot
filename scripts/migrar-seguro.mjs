@@ -130,6 +130,60 @@ async function principal() {
   const cliente = new Client({ connectionString: cadena });
   await cliente.connect();
 
+  /*
+   * ────────────────────────────────────────────────────────────────────
+   * SALVAGUARDA: ¿es esta la base correcta?
+   * ────────────────────────────────────────────────────────────────────
+   * Sin esto, un `DATABASE_URL` mal configurado (apuntando a `postgres`, la
+   * base administrativa por defecto) hace que el baseline marque las 19
+   * migraciones como aplicadas en una base donde NO están, y que la base
+   * real del proyecto se quede sin ellas para siempre.
+   *
+   * Se comprueba que existan tablas del proyecto ANTES de marcar o aplicar
+   * nada. Si no hay ni una, es casi seguro que la URL es incorrecta.
+   */
+  const tablasProyecto = [
+    'areas',
+    'dispositivos',
+    'mediciones',
+    'usuarios',
+    'tipos_variable',
+  ];
+
+  const { rows: presentes } = await cliente.query(
+    `SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = ANY($1)`,
+    [tablasProyecto]
+  );
+
+  if (presentes.length === 0 && (BASELINE || !DRY_RUN)) {
+    const nombreBase = cadena.split('/').pop()?.split('?')[0] ?? '?';
+    console.error('');
+    console.error('  ⛔ ABORTADO: esta base no parece la del proyecto.');
+    console.error('');
+    console.error(`     Base indicada: «${nombreBase}»`);
+    console.error('     No contiene ninguna de estas tablas:');
+    console.error(`       ${tablasProyecto.join(', ')}`);
+    console.error('');
+    console.error('  Es muy probable que DATABASE_URL esté mal. Si marcas con');
+    console.error('  --baseline aquí, las migraciones quedarían registradas como');
+    console.error('  aplicadas EN UNA BASE VACÍA, y la base real del proyecto');
+    console.error('  nunca se actualizaría.');
+    console.error('');
+    console.error('  Revisa DATABASE_URL en api/.env. Debe terminar en el');
+    console.error('  nombre de TU base, por ejemplo:');
+    console.error('     postgresql://usuario:clave@localhost:5432/monitoreo_iot_tesis');
+    console.error('');
+    process.exit(1);
+  }
+
+  // Si hay alguna tabla del proyecto, se informa de cuántas hay.
+  if (presentes.length > 0) {
+    console.log(
+      `  Tablas del proyecto encontradas: ${presentes.length} de ${tablasProyecto.length}`
+    );
+  }
+
   try {
     // 1. Crear la tabla de control si no existe.
     await cliente.query(`
