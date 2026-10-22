@@ -10,7 +10,7 @@ const COLUMNAS = `
   r.id, r.canal_id, r.nombre, r.descripcion, r.operador,
   r.valor_referencia_numerico, r.valor_referencia_texto, r.valor_referencia_booleano,
   r.valor_min, r.valor_max, r.severidad, r.mensaje, r.activa, r.retardo_segundos,
-  r.histeresis,
+  r.histeresis, r.plantilla_id, r.norma, r.requiere_verificacion,
   r.creado_en, r.actualizado_en,
   c.codigo AS canal_codigo, c.nombre AS canal_nombre, c.unidad AS canal_unidad,
   tv.nombre AS tipo_nombre, tv.tipo_dato AS tipo_dato,
@@ -59,8 +59,9 @@ export const reglaRepository = {
       `INSERT INTO reglas_alerta
         (canal_id, nombre, descripcion, operador, valor_referencia_numerico,
          valor_referencia_texto, valor_referencia_booleano, valor_min, valor_max,
-         severidad, mensaje, activa, retardo_segundos, histeresis)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, COALESCE($12, TRUE), $13, $14)
+         severidad, mensaje, activa, retardo_segundos, histeresis,
+         plantilla_id, norma, requiere_verificacion)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, COALESCE($12, TRUE), $13, $14, $15, $16, COALESCE($17, FALSE))
        RETURNING id`,
       [
         d.canal_id, d.nombre, d.descripcion ?? null, d.operador,
@@ -68,6 +69,7 @@ export const reglaRepository = {
         d.valor_referencia_booleano ?? null, d.valor_min ?? null, d.valor_max ?? null,
         d.severidad, d.mensaje ?? null, d.activa ?? null, d.retardo_segundos ?? null,
         d.histeresis ?? null,
+        d.plantilla_id ?? null, d.norma ?? null, d.requiere_verificacion ?? null,
       ]
     );
     const fila = await this.buscarPorId(ins.rows[0].id);

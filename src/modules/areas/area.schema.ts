@@ -23,6 +23,12 @@ export const crearAreaSchema = z.object({
   descripcion: textoOpcional(1000),
   ubicacion: textoOpcional(255),
   activo: z.boolean().optional(),
+  /*
+   * Perfil normativo del recinto: 'quirofano-ashrae-170', etc.
+   * Se valida que exista la plantilla en el servicio, porque el catálogo son
+   * archivos y no una tabla.
+   */
+  perfil_alerta: textoOpcional(80),
 });
 
 /** Esquema para el parámetro de ruta `:id` (UUID). */
@@ -45,6 +51,7 @@ export const actualizarAreaSchema = z
     descripcion: textoOpcional(1000),
     ubicacion: textoOpcional(255),
     activo: z.boolean().optional(),
+    perfil_alerta: textoOpcional(80),
   })
   .refine((datos) => Object.keys(datos).length > 0, {
     message: 'Debe proporcionar al menos un campo para actualizar',

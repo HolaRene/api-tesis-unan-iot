@@ -143,7 +143,12 @@ export const comandoActuadorRepository = {
     id: string,
     datos: Partial<{
       estado: string;
+      /** Cuándo Node-RED recogió el comando de la cola. */
+      recogido_en: Date;
+      /** Cuándo se escribió en el PLC. */
       enviado_en: Date;
+      /** Cuándo la lectura de vuelta confirmó el estado pedido. */
+      confirmado_en: Date;
       ejecutado_en: Date;
       respuesta: unknown;
     }>
@@ -155,9 +160,17 @@ export const comandoActuadorRepository = {
       sets.push(`estado = $${i++}`);
       valores.push(datos.estado);
     }
+    if (datos.recogido_en !== undefined) {
+      sets.push(`recogido_en = $${i++}`);
+      valores.push(datos.recogido_en);
+    }
     if (datos.enviado_en !== undefined) {
       sets.push(`enviado_en = $${i++}`);
       valores.push(datos.enviado_en);
+    }
+    if (datos.confirmado_en !== undefined) {
+      sets.push(`confirmado_en = $${i++}`);
+      valores.push(datos.confirmado_en);
     }
     if (datos.ejecutado_en !== undefined) {
       sets.push(`ejecutado_en = $${i++}`);
@@ -203,5 +216,60 @@ export const comandoActuadorRepository = {
       [minutos]
     );
     return r.rowCount ?? 0;
+  },
+
+  /**
+   * Configuración de simulación de los actuadores de un dispositivo.
+   *
+   * Node-RED la consulta al arrancar (y cada cierto tiempo) para saber
+   * cuánto debe tardar cada actuador en reflejar la orden. Así el parámetro
+   * vive en UN solo sitio —la configuración del actuador— y no repartido en
+   * nodos de Node-RED.
+   *
+   * Se lee de `actuadores.configuracion`, que es JSONB y ya existe:
+   *
+   *   { "latencia_s": 6, "timeout_s": 15 }
+   *
+   * Valores por defecto si no están definidos:
+   *   latencia_s = 0   (sin retardo: el equipo responde al instante)
+   *   timeout_s  = 3 * latencia + 10  (margen generoso sobre el retardo)
+   */
+  async configuracionSimulacion(identificador?: string): Promise<
+    {
+      actuador_codigo: string;
+      protocolo: string;
+      latencia_s: number;
+      timeout_s: number;
+    }[]
+  > {
+    const cond = identificador ? 'AND d.identificador = $1' : '';
+    const valores = identificador ? [identificador] : [];
+
+    const r = await query<{
+      actuador_codigo: string;
+      protocolo: string;
+      configuracion: Record<string, unknown> | null;
+    }>(
+      `SELECT a.codigo AS actuador_codigo,
+              a.protocolo,
+              a.configuracion
+         FROM actuadores a
+         JOIN dispositivos d ON d.id = a.dispositivo_id
+        WHERE a.activo = TRUE ${cond}
+        ORDER BY a.codigo`,
+      valores
+    );
+
+    return r.rows.map((fila) => {
+      const latencia = Number(fila.configuracion?.latencia_s ?? 0) || 0;
+      const timeout =
+        Number(fila.configuracion?.timeout_s ?? 0) || latencia * 3 + 10;
+      return {
+        actuador_codigo: fila.actuador_codigo,
+        protocolo: fila.protocolo,
+        latencia_s: latencia,
+        timeout_s: timeout,
+      };
+    });
   },
 };

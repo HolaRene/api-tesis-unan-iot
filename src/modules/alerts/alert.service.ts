@@ -9,6 +9,7 @@ import { alertRepository } from './alert.repository.js';
 import { reglaRepository } from '../reglas-alerta/regla-alerta.repository.js';
 import type { Measurement } from '../measurements/measurement.types.js';
 import { cumpleCondicion, decidirConRetardo } from './motor-alertas.js';
+import { evaluarUmbral } from '../iot/falla-lazo.js';
 import {
   emitirAlertaCreada,
   emitirAlertaResuelta,
@@ -106,6 +107,25 @@ export const alertService = {
    */
   async evaluarMedicion(medicion: Measurement): Promise<void> {
     if (!medicion.canal_id) return;
+
+    /*
+     * Una medición en FALLA no se evalúa contra umbrales.
+     *
+     * Un sensor averiado entrega -32768 o < 3,6 mA. Comparar ese valor con
+     * «temperatura < 18 °C» abre una alarma que describe mal el problema: el
+     * sensor está roto, no hace frío.
+     *
+     * En su lugar se abre una alerta de tipo `falla_lazo`, que el operario
+     * reconoce como distinta de una desviación de proceso.
+     */
+    if (!evaluarUmbral(medicion.calidad)) {
+      await this.registrarFallaLazo(medicion);
+      return;
+    }
+
+    // Al volver a leer bien, se cierra la falla (si la había).
+    await this.resolverFallaLazo(medicion);
+
     const reglas = await reglaRepository.listar({ canal_id: medicion.canal_id, activa: true });
     for (const regla of reglas) {
       /*
@@ -203,6 +223,43 @@ export const alertService = {
     emitirAlertaResuelta(resultado);
     return resultado;
   },
+/**
+ * Abre la alerta de falla de lazo si aún no hay una.
+   *
+   * Deduplicación: mientras la falla siga activa solo puede haber UNA
+   * alerta abierta por canal. Sin esto, cada lectura de -32768 (cada 15 s)
+   * crearía una alerta nueva y llenaría la lista.
+   */
+  async registrarFallaLazo(medicion: Measurement): Promise<void> {
+    if (!medicion.canal_id) return;
+    const abierta = await alertRepository.buscarFallaLazoAbierta(medicion.canal_id);
+    if (abierta) return;
+
+    const motivo =
+      (medicion.metadatos as Record<string, unknown> | null)?.motivo_calidad;
+    const mensaje =
+      typeof motivo === 'string'
+        ? `Falla de lazo en el sensor: ${motivo}`
+        : 'Falla de lazo en el sensor';
+
+    // La falla de instrumento es siempre crítica: el dato no es fiable.
+    const creada = await alertRepository.crearFallaLazo({
+      canal_id: medicion.canal_id,
+      medicion_id: medicion.id ?? null,
+      severidad: 'critical',
+      mensaje,
+      motivo: typeof motivo === 'string' ? motivo : null,
+    });
+    // Persistida (COMMIT) antes de emitir.
+    emitirAlertaCreada(creada);
+  },
+
+  /** Cierra la falla de lazo cuando el sensor vuelve a entregar medidas válidas. */
+  async resolverFallaLazo(medicion: Measurement): Promise<void> {
+    if (!medicion.canal_id) return;
+    const resueltas = await alertRepository.resolverFallaLazo(medicion.canal_id);
+    for (const resuelta of resueltas) emitirAlertaResuelta(resuelta);
+  },
 };
 
 /** Evalúa si la regla (según tipo de dato del canal) se cumple con la medición. */
@@ -217,4 +274,5 @@ function valorDisparador(
   if (tipo === 'boolean') return { valor_numerico: null, valor_texto: null, valor_booleano: m.valor_booleano ?? null };
   return { valor_numerico: null, valor_texto: m.valor_texto ?? null, valor_booleano: null };
 }
+
 

@@ -29,6 +29,21 @@ export const ingestaMedicionesSchema = z
       .min(1, 'El identificador del dispositivo es obligatorio'),
     mediciones: z.array(medicionEntradaSchema).min(1, 'Debe enviar al menos una medición'),
     metadatos: z.record(z.string(), z.unknown()).optional(),
+
+    /*
+     * Instante en que el PLC/Node-RED GENERÓ la lectura (ISO 8601 UTC).
+     *
+     * Sin esta marca solo se sabe cuándo la API la guardó, así que no se
+     * puede medir la latencia extremo a extremo: cuánto tarda un dato desde
+     * que se mide hasta que queda registrado.
+     *
+     * Es opcional: si un integrador no la envía, esa medición no entra en el
+     * cálculo de latencia (pero se guarda con normalidad).
+     */
+    origen_en: z
+      .string()
+      .datetime({ offset: true, message: 'origen_en debe ser una fecha ISO 8601' })
+      .optional(),
   })
   .strict();
 

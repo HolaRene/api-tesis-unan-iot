@@ -6,6 +6,8 @@ import type {
 } from './area.types.js';
 import { areaRepository } from './area.repository.js';
 import type { UsuarioAlcance } from '../../utils/alcance.js';
+import { calcularCumplimiento } from './cumplimiento.js';
+import { listarPlantillas } from '../plantillas-alerta/plantilla-alerta.service.js';
 
 /**
  * Lógica de negocio del módulo de áreas.
@@ -75,5 +77,62 @@ export const areaService = {
       }
       throw ApiError.notFound('Área no encontrada');
     }
+  },
+
+  /**
+   * Cumplimiento normativo del área.
+   *
+   * Devuelve, por cada magnitud presente, el último valor medido frente a la
+   * banda que fija el perfil del área. Si el área no declara perfil, se
+   * devuelve igualmente con estado `sin_regla` para que la interfaz pueda
+   * ofrecer asignarlo.
+   */
+  async cumplimiento(id: string, usuario?: UsuarioAlcance | null) {
+    const area = await this.obtenerPorId(id, usuario);
+
+    const plantillaId = area.perfil_alerta ?? null;
+    let plantilla = null;
+    if (plantillaId) {
+      const plantillas = await listarPlantillas();
+      plantilla = plantillas.find((p) => p.id === plantillaId) ?? null;
+    }
+
+    const magnitudes = await areaRepository.ultimosValoresPorMagnitud(id);
+    const ultimos = new Map(
+      magnitudes.map((m) => [
+        m.codigo.toUpperCase(),
+        { valor: m.valor, medido_en: m.medido_en },
+      ])
+    );
+
+    const comprometidas = calcularCumplimiento(
+      plantilla,
+      magnitudes.map((m) => ({
+        codigo: m.codigo,
+        nombre: m.nombre,
+        unidad: m.unidad,
+      })),
+      ultimos
+    );
+
+    return {
+      area: { id: area.id, nombre: area.nombre, perfil_alerta: plantillaId },
+      perfil: plantilla
+        ? {
+            id: plantilla.id,
+            nombre: plantilla.nombre,
+            norma: plantilla.norma,
+            notas: plantilla.notas,
+          }
+        : null,
+      magnitudes: comprometidas,
+      resumen: {
+        total: comprometidas.length,
+        cumple: comprometidas.filter((m) => m.estado === 'cumple').length,
+        fuera: comprometidas.filter((m) => m.estado === 'fuera').length,
+        sin_datos: comprometidas.filter((m) => m.estado === 'sin_datos').length,
+        sin_regla: comprometidas.filter((m) => m.estado === 'sin_regla').length,
+      },
+    };
   },
 };

@@ -73,6 +73,11 @@ export interface ConfirmarComandoInput {
   respuesta?: Record<string, unknown>;
   /** Nuevo estado del actuador si la orden se ejecutó (p. ej. 'on', 'off'). */
   estado_actuador?: string;
+
+  /* Marcas de tiempo (ISO 8601 UTC) para medir latencias por etapa. */
+  recogido_en?: string;
+  enviado_en?: string;
+  confirmado_en?: string;
 }
 
 /**

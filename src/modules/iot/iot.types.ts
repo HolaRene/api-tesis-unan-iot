@@ -19,6 +19,8 @@ export interface IngestaMedicionesEntrada {
   dispositivo: string; // identificador del dispositivo, ej: ESP32-Q2
   mediciones: MedicionEntrada[];
   metadatos?: Record<string, unknown>;
+  /** Instante (ISO 8601 UTC) en que el PLC/Node-RED generó la lectura. */
+  origen_en?: string;
 }
 
 /**

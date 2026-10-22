@@ -77,4 +77,14 @@ export const areaController = {
       next(error);
     }
   },
+
+  /** GET /areas/:id/cumplimiento — valor actual frente al perfil normativo. */
+  async cumplimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const datos = await areaService.cumplimiento(String(req.params.id), req.usuario);
+      responderExito(res, datos, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
 };

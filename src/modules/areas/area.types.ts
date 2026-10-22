@@ -13,6 +13,8 @@ export interface Area {
   descripcion: string | null;
   ubicacion: string | null;
   activo: boolean;
+  /** Perfil normativo del recinto, si lo tiene declarado. */
+  perfil_alerta?: string | null;
   /** Dueño del recurso. `null` = global (visible por todos, editable por admin). */
   propietario_id?: string | null;
   creado_en: Date;
@@ -25,6 +27,8 @@ export interface CrearAreaInput {
   descripcion?: string | null;
   ubicacion?: string | null;
   activo?: boolean;
+  /** Perfil normativo del recinto (id de plantilla), opcional al crear. */
+  perfil_alerta?: string | null;
   /** Lo asigna el servicio desde el usuario autenticado. */
   propietario_id?: string | null;
 }
@@ -36,4 +40,6 @@ export interface ActualizarAreaInput {
   descripcion?: string | null;
   ubicacion?: string | null;
   activo?: boolean;
+  /** Perfil normativo del recinto (id de plantilla) o null para quitarlo. */
+  perfil_alerta?: string | null;
 }

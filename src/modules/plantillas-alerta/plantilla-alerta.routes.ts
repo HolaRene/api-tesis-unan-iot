@@ -80,6 +80,17 @@ router.post('/:id/aplicar', requiereRol('usuario', 'admin'), async (req, res, ne
             activa: true,
             retardo_segundos: regla.retardo_segundos ?? null,
             histeresis: regla.histeresis ?? null,
+            /*
+             * Trazabilidad: de qué norma sale esta regla y si su valor
+             * está pendiente de confirmar.
+             *
+             * Se busca [verificar] tanto en el mensaje de la regla como en
+             * las notas de la plantilla que mencionen su variable: así una
+             * regla hereda la marca cuando la plantilla advierte de ella.
+             */
+            plantilla_id: plantilla.id,
+            norma: plantilla.norma,
+            requiere_verificacion: /\[verificar\]/i.test(regla.mensaje ?? ''),
           })
       );
     }

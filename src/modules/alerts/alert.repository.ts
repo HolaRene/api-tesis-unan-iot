@@ -209,4 +209,53 @@ export const alertRepository = {
     );
     return (resultado.rowCount ?? 0) > 0;
   },
+
+  /**
+   * Alerta abierta de FALLA DE LAZO de un canal, si la hay.
+   *
+   * Se distinguen de las de umbral por `tipo = 'falla_lazo'`. No tienen
+   * `regla_id` porque no dependen de ninguna regla configurada: el sensor
+   * está averiado, independientemente de los umbrales del proceso.
+   */
+  async buscarFallaLazoAbierta(canalId: string): Promise<Alert | null> {
+    const r = await query<Alert>(
+      `SELECT * FROM alertas
+        WHERE canal_id = $1 AND tipo = 'falla_lazo'
+          AND estado IN ('active','acknowledged')
+        ORDER BY iniciada_en DESC LIMIT 1`,
+      [canalId]
+    );
+    return r.rows[0] ?? null;
+  },
+
+  /** Crea la alerta de falla de lazo. */
+  async crearFallaLazo(datos: {
+    canal_id: string;
+    medicion_id: number | null;
+    severidad: string;
+    mensaje: string;
+    motivo: string | null;
+  }): Promise<Alert> {
+    const r = await query<Alert>(
+      `INSERT INTO alertas
+         (canal_id, medicion_id, tipo, severidad, mensaje, estado, metadatos)
+       VALUES ($1, $2, 'falla_lazo', $3, $4, 'active',
+               jsonb_build_object('motivo', $5::text))
+       RETURNING *`,
+      [datos.canal_id, datos.medicion_id, datos.severidad, datos.mensaje, datos.motivo]
+    );
+    return r.rows[0]!;
+  },
+
+  /** Resuelve la falla de lazo abierta de un canal (al volver a leer bien). */
+  async resolverFallaLazo(canalId: string): Promise<Alert[]> {
+    const r = await query<Alert>(
+      `UPDATE alertas SET estado = 'resolved', finalizada_en = NOW()
+        WHERE canal_id = $1 AND tipo = 'falla_lazo'
+          AND estado IN ('active','acknowledged')
+        RETURNING ${CAMPOS_ALERTA}`,
+      [canalId]
+    );
+    return r.rows;
+  },
 };

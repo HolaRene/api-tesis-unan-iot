@@ -12,6 +12,7 @@ const router = Router();
 router.use(middlewareAuth);
 
 router.get('/', areaController.listar);
+router.get('/:id/cumplimiento', areaController.cumplimiento);
 router.get('/:id', areaController.obtenerPorId);
 router.post('/', requiereRol('usuario', 'admin'), areaController.crear);
 router.patch('/:id', requiereRol('usuario', 'admin'), areaController.actualizar);

@@ -7,6 +7,7 @@ import type {
 } from './iot.types.js';
 import { measurementService } from '../measurements/measurement.service.js';
 import { comandoActuadorService } from '../comandos-actuador/comando-actuador.service.js';
+import { diagnosticarValor } from './falla-lazo.js';
 import { deviceService } from '../devices/device.service.js';
 import type { Device } from '../devices/device.types.js';
 import {
@@ -86,14 +87,38 @@ export const iotService = {
         }
 
         const medicionInput = prepararMedicionPorTipo(canal, item.valor);
+
+        /*
+         * Diagnóstico de falla de lazo ANTES de guardar.
+         *
+         * Un sensor averiado no entrega una medida: entrega -32768 o una
+         * corriente por debajo de 3,6 mA. Guardarlo como `good` hacía que
+         * ese valor entrara en las reglas de umbral y generara una alarma
+         * de «temperatura baja» cuando el problema real era un cable roto.
+         */
+        const diagnostico = diagnosticarValor(
+          medicionInput.valor_numerico ?? null,
+          {
+            // Solo los canales de corriente aplican NAMUR NE 43.
+            esCorriente:
+              /corriente|ma\b/i.test(canal.codigo) ||
+              /\bmA\b/i.test(canal.unidad ?? ''),
+          }
+        );
+
         const medicion = await measurementService.crear({
           ...medicionInput,
           canal_id: canal.id,
-          calidad: 'good',
+          calidad: diagnostico.calidad,
           registrado_en: new Date(),
           metadatos: {
             ...(entrada.metadatos ?? {}),
             fuente: entrada.metadatos?.fuente ?? 'integracion',
+            // Marca de origen para medir latencia extremo a extremo.
+            ...(entrada.origen_en ? { origen_en: entrada.origen_en } : {}),
+            // Trazabilidad del diagnóstico: por qué se marcó como mala.
+            ...(diagnostico.motivo ? { motivo_calidad: diagnostico.motivo } : {}),
+            ...(diagnostico.deteccion ? { deteccion: diagnostico.deteccion } : {}),
             dispositivo: entrada.dispositivo,
             integracion_usuario: integracionUsuarioId,
           },

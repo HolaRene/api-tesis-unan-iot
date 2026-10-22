@@ -164,4 +164,26 @@ export const iotController = {
       next(error);
     }
   },
+
+  /**
+   * GET /iot/actuadores/configuracion — latencia y timeout por actuador.
+   *
+   * Node-RED lo consulta para saber cuánto debe esperar cada equipo. El
+   * parámetro vive en la configuración del actuador, no en nodos sueltos.
+   */
+  async configuracionActuadores(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const identificador = req.query.identificador;
+      const datos = await comandoActuadorService.configuracionSimulacion(
+        typeof identificador === 'string' ? identificador : undefined
+      );
+      responderExito(res, datos, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
 };

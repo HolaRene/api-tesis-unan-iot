@@ -119,11 +119,26 @@ export const comandoActuadorService = {
     }
 
     const ahora = new Date();
+
+    /*
+     * Marcas de tiempo de Node-RED.
+     *
+     * Se aceptan tal cual llegaron (UTC) en lugar de sustituirlas por `ahora`:
+     * `enviado_en` es el instante en que se ESCRIBIÓ en el PLC, y sustituirlo
+     * por el de la confirmación borraría justo el dato que se quiere medir
+     * (el retardo real del equipo).
+     *
+     * Si no llegan, se mantiene el comportamiento anterior.
+     */
+    const fecha = (v?: string) => (v ? new Date(v) : undefined);
+
     await comandoActuadorRepository.actualizarProceso(comandoId, {
       estado: entrada.estado,
+      recogido_en: fecha(entrada.recogido_en),
       // 'enviado' marca la salida hacia el equipo; 'ejecutado' y 'fallido'
       // implican que ya salió, así que también fijan `enviado_en` si falta.
-      enviado_en: comando.enviado_en ?? ahora,
+      enviado_en: fecha(entrada.enviado_en) ?? comando.enviado_en ?? ahora,
+      confirmado_en: fecha(entrada.confirmado_en),
       ejecutado_en: entrada.estado === 'ejecutado' ? ahora : undefined,
       respuesta: entrada.respuesta,
     });
@@ -160,5 +175,10 @@ export const comandoActuadorService = {
   async expirarPendientes(minutos: number): Promise<number> {
     if (minutos <= 0) return 0;
     return comandoActuadorRepository.expirarPendientes(minutos);
+  },
+
+  /** Configuración de latencia/timeout por actuador (para Node-RED). */
+  async configuracionSimulacion(identificador?: string) {
+    return comandoActuadorRepository.configuracionSimulacion(identificador);
   },
 };

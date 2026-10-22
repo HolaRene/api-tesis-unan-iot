@@ -39,6 +39,12 @@ export interface FilaReglaDetalle {
   retardo_segundos: number | null;
   /** Margen para cerrar la alerta una vez vuelve a la banda. */
   histeresis: number | null;
+  /** Plantilla de la que se creó la regla. NULL si se creó a mano. */
+  plantilla_id?: string | null;
+  /** Norma de referencia heredada de la plantilla. */
+  norma?: string | null;
+  /** El valor está marcado [verificar] en la fuente. */
+  requiere_verificacion?: boolean;
   // relaciones
   canal_codigo?: string | null;
   canal_nombre?: string | null;
@@ -66,6 +72,9 @@ export interface CrearReglaInput {
   retardo_segundos?: number | null;
   /** Margen para cerrar la alerta. Solo numéricas. */
   histeresis?: number | null;
+  plantilla_id?: string | null;
+  norma?: string | null;
+  requiere_verificacion?: boolean;
 }
 
 export interface ActualizarReglaInput {
@@ -84,6 +93,9 @@ export interface ActualizarReglaInput {
   retardo_segundos?: number | null;
   /** Margen para cerrar la alerta. Solo numéricas. */
   histeresis?: number | null;
+  plantilla_id?: string | null;
+  norma?: string | null;
+  requiere_verificacion?: boolean;
 }
 
 export interface FiltroReglas {

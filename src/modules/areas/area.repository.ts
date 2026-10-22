@@ -12,7 +12,7 @@ import {
 
 /** Columnas devueltas en las consultas que mapean a un Área. */
 const CAMPOS_AREA =
-  'id, nombre, tipo, descripcion, ubicacion, activo, propietario_id, creado_en';
+  'id, nombre, tipo, descripcion, ubicacion, activo, perfil_alerta, propietario_id, creado_en';
 
 /**
  * Repositorio de áreas. Contiene únicamente consultas SQL/PostgreSQL.
@@ -64,8 +64,8 @@ export const areaRepository = {
    */
   async crear(datos: CrearAreaInput): Promise<Area> {
     const resultado = await query<Area>(
-      `INSERT INTO areas (nombre, tipo, descripcion, ubicacion, activo, propietario_id)
-       VALUES ($1, $2, $3, $4, COALESCE($5, TRUE), $6)
+      `INSERT INTO areas (nombre, tipo, descripcion, ubicacion, activo, perfil_alerta, propietario_id)
+       VALUES ($1, $2, $3, $4, COALESCE($5, TRUE), $6, $7)
        RETURNING ${CAMPOS_AREA}`,
       [
         datos.nombre,
@@ -73,6 +73,7 @@ export const areaRepository = {
         datos.descripcion ?? null,
         datos.ubicacion ?? null,
         datos.activo ?? null,
+        datos.perfil_alerta ?? null,
         datos.propietario_id ?? null,
       ]
     );
@@ -107,6 +108,10 @@ export const areaRepository = {
     if (datos.ubicacion !== undefined) {
       sets.push(`ubicacion = $${indice++}`);
       valores.push(datos.ubicacion);
+    }
+    if (datos.perfil_alerta !== undefined) {
+      sets.push(`perfil_alerta = $${indice++}`);
+      valores.push(datos.perfil_alerta);
     }
     if (datos.activo !== undefined) {
       sets.push(`activo = $${indice++}`);
@@ -147,5 +152,50 @@ export const areaRepository = {
       valores
     );
     return (resultado.rowCount ?? 0) > 0;
+  },
+
+  /**
+   * Último valor de cada magnitud presente en un área.
+   *
+   * Recorre área → dispositivo → sensor → canal → medición, y por cada tipo
+   * de variable se queda con la medición más reciente. Se usa para comparar
+   * el valor actual contra la banda del perfil normativo.
+   *
+   * `LEFT JOIN LATERAL` (y no un MAX agrupado) porque interesa el valor
+   * junto con su fecha: una lectura correcta de hace tres días no acredita
+   * que hoy se cumpla la norma, y la vista debe poder avisar de ello.
+   */
+  async ultimosValoresPorMagnitud(areaId: string): Promise<
+    { codigo: string; nombre: string; unidad: string | null; valor: number | null; medido_en: Date | null }[]
+  > {
+    const r = await query<{
+      codigo: string;
+      nombre: string;
+      unidad: string | null;
+      valor: number | null;
+      medido_en: Date | null;
+    }>(
+      `SELECT DISTINCT ON (t.codigo)
+              t.codigo,
+              t.nombre,
+              t.unidad_default AS unidad,
+              ult.valor_numerico AS valor,
+              ult.registrado_en  AS medido_en
+         FROM tipos_variable t
+         JOIN canales c       ON c.tipo_variable_id = t.id
+         JOIN sensores s      ON s.id = c.sensor_id
+         JOIN dispositivos d  ON d.id = s.dispositivo_id
+         LEFT JOIN LATERAL (
+           SELECT m.valor_numerico, m.registrado_en
+             FROM mediciones m
+            WHERE m.canal_id = c.id
+            ORDER BY m.registrado_en DESC
+            LIMIT 1
+         ) ult ON TRUE
+        WHERE d.area_id = $1
+        ORDER BY t.codigo, ult.registrado_en DESC NULLS LAST`,
+      [areaId]
+    );
+    return r.rows;
   },
 };

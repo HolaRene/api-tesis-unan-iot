@@ -49,6 +49,22 @@ export const confirmarComandoSchema = z
       .string()
       .max(50, 'El estado no puede superar 50 caracteres')
       .optional(),
+
+    /*
+     * MARCAS DE TIEMPO PARA MEDIR LATENCIA.
+     *
+     * Se valida como fecha ISO 8601 y se guarda tal cual llegó (UTC). Van
+     * por separado porque responden preguntas distintas:
+     *
+     *   recogido_en   → cuánto esperó el comando en la cola (sondeo 2 s)
+     *   enviado_en    → cuándo se escribió de verdad en el PLC
+     *   confirmado_en → cuándo la lectura de vuelta dio el estado pedido
+     *
+     * Node-RED debe mandarlas con `new Date().toISOString()`.
+     */
+    recogido_en: z.string().datetime({ offset: true }).optional(),
+    enviado_en: z.string().datetime({ offset: true }).optional(),
+    confirmado_en: z.string().datetime({ offset: true }).optional(),
   })
   .strict();
 
