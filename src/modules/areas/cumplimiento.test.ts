@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   calcularCumplimiento,
+  clasificarNivel,
   dentroDeBanda,
   describirBanda,
 } from './cumplimiento.js';
@@ -36,7 +37,7 @@ const quirofano: PlantillaAlerta = {
       variable: 'presion',
       tipos_variable: ['PRESION'],
       nombre: 'Presión mínima',
-      operador: '>=',
+      operador: '<',
       valor_referencia_numerico: 2.5,
       severidad: 'warning',
       mensaje: 'Presión positiva por debajo de 2,5 Pa [verificar]',
@@ -122,5 +123,31 @@ describe('calcularCumplimiento', () => {
     const r = calcularCumplimiento(quirofano, magnitudes, ultimos);
     const temp = r.find((m) => m.tipo_codigo === 'TEMPERATURA')!;
     assert.equal(temp.requiere_verificacion, false);
+  });
+});
+
+describe('clasificarNivel', () => {
+  const reglas = [
+    { variable: 't', tipos_variable: ['TEMPERATURA'], nombre: 'w', operador: 'fuera_de_rango', valor_min: 20, valor_max: 24, severidad: 'warning', mensaje: '' },
+    { variable: 't', tipos_variable: ['TEMPERATURA'], nombre: 'c', operador: 'fuera_de_rango', valor_min: 18, valor_max: 26, severidad: 'critical', mensaje: '' },
+  ] as never;
+
+  it('bueno dentro de la banda', () => assert.equal(clasificarNivel(22, reglas), 'bueno'));
+  it('advertencia entre la banda y el margen crítico', () => {
+    assert.equal(clasificarNivel(19, reglas), 'advertencia');
+    assert.equal(clasificarNivel(25, reglas), 'advertencia');
+  });
+  it('crítico fuera del margen', () => {
+    assert.equal(clasificarNivel(17, reglas), 'critico');
+    assert.equal(clasificarNivel(27, reglas), 'critico');
+  });
+  it('sin datos y sin regla', () => {
+    assert.equal(clasificarNivel(null, reglas), 'sin_datos');
+    assert.equal(clasificarNivel(22, [] as never), 'sin_regla');
+  });
+  it('una presión de 5 Pa NO es alarma con la regla «< 2,5»', () => {
+    const p = [{ variable: 'p', tipos_variable: ['PRESION'], nombre: 'p', operador: '<', valor_referencia_numerico: 2.5, severidad: 'warning', mensaje: '' }] as never;
+    assert.equal(clasificarNivel(5, p), 'bueno');
+    assert.equal(clasificarNivel(1.2, p), 'advertencia');
   });
 });

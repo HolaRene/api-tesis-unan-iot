@@ -27,9 +27,45 @@
  * valores ya reunidos. Así se puede probar cada caso límite sin levantar la
  * aplicación, y el significado de «cumple» queda en un solo sitio.
  */
+import { cumpleCondicion } from '../alerts/motor-alertas.js';
 import type { ReglaPlantilla, PlantillaAlerta } from '../plantillas-alerta/plantilla-alerta.service.js';
 
 export type EstadoCumplimiento = 'cumple' | 'fuera' | 'sin_datos' | 'sin_regla';
+
+/**
+ * Nivel de una medición, de mejor a peor, para pintarla en la interfaz:
+ *
+ *   bueno        → ninguna regla se dispara (verde)
+ *   advertencia  → se dispara una regla `warning` (amarillo)
+ *   critico      → se dispara una regla `critical` (rojo)
+ *   sin_datos    → no hay medición
+ *   sin_regla    → el área no tiene regla para esta magnitud
+ */
+export type NivelMedicion =
+  | 'bueno'
+  | 'advertencia'
+  | 'critico'
+  | 'sin_datos'
+  | 'sin_regla';
+
+/**
+ * Clasifica un valor con las MISMAS reglas y operadores que el motor de
+ * alertas (`cumpleCondicion`): una regla describe la CONDICIÓN DE ALARMA
+ * («< 2,5», «> 1000», «fuera de 20–24»), así que el valor es «bueno» cuando
+ * ninguna se dispara. La crítica pesa más que la advertencia.
+ */
+export function clasificarNivel(
+  valor: number | null,
+  reglas: ReglaPlantilla[]
+): NivelMedicion {
+  if (reglas.length === 0) return 'sin_regla';
+  if (valor === null) return 'sin_datos';
+  if (reglas.some((r) => r.severidad === 'critical' && cumpleCondicion(r, valor)))
+    return 'critico';
+  if (reglas.some((r) => r.severidad === 'warning' && cumpleCondicion(r, valor)))
+    return 'advertencia';
+  return 'bueno';
+}
 
 export interface CumplimientoMagnitud {
   /** Código del tipo de variable, p. ej. TEMPERATURA. */
@@ -41,6 +77,8 @@ export interface CumplimientoMagnitud {
   /** Cuándo se midió ese valor. */
   medido_en: Date | null;
   estado: EstadoCumplimiento;
+  /** Bueno / advertencia / crítico, según las reglas del perfil. */
+  nivel: NivelMedicion;
   /** Banda aceptable del perfil, en texto («20 – 24», «> 10»…). */
   banda: string | null;
   /** Límites numéricos, para pintar la escala. */
@@ -73,27 +111,31 @@ export function describirBanda(regla: ReglaPlantilla): {
         minimo: regla.valor_min ?? null,
         maximo: regla.valor_max ?? null,
       };
-    case '>':
-      return {
-        texto: `> ${regla.valor_referencia_numerico ?? '…'}${u}`,
-        minimo: regla.valor_referencia_numerico ?? null,
-        maximo: null,
-      };
-    case '>=':
+    /*
+     * Las comparaciones simples describen la CONDICIÓN DE ALARMA, así que la
+     * banda aceptable es su complemento: «< 2,5» alarma ⇒ aceptable «≥ 2,5».
+     */
+    case '<':
       return {
         texto: `≥ ${regla.valor_referencia_numerico ?? '…'}${u}`,
         minimo: regla.valor_referencia_numerico ?? null,
         maximo: null,
       };
-    case '<':
+    case '<=':
       return {
-        texto: `< ${regla.valor_referencia_numerico ?? '…'}${u}`,
+        texto: `> ${regla.valor_referencia_numerico ?? '…'}${u}`,
+        minimo: regla.valor_referencia_numerico ?? null,
+        maximo: null,
+      };
+    case '>':
+      return {
+        texto: `≤ ${regla.valor_referencia_numerico ?? '…'}${u}`,
         minimo: null,
         maximo: regla.valor_referencia_numerico ?? null,
       };
-    case '<=':
+    case '>=':
       return {
-        texto: `≤ ${regla.valor_referencia_numerico ?? '…'}${u}`,
+        texto: `< ${regla.valor_referencia_numerico ?? '…'}${u}`,
         minimo: null,
         maximo: regla.valor_referencia_numerico ?? null,
       };
@@ -153,6 +195,7 @@ export function calcularCumplimiento(
         valor,
         medido_en: ultimo?.medido_en ?? null,
         estado: 'sin_regla',
+        nivel: 'sin_regla',
         banda: null,
         minimo: null,
         maximo: null,
@@ -178,6 +221,7 @@ export function calcularCumplimiento(
         valor,
         medido_en: ultimo?.medido_en ?? null,
         estado: 'sin_regla',
+        nivel: 'sin_regla',
         banda: null,
         minimo: null,
         maximo: null,
@@ -192,8 +236,9 @@ export function calcularCumplimiento(
     );
 
     let estado: EstadoCumplimiento;
+    const nivel = clasificarNivel(valor, reglas);
     if (valor === null) estado = 'sin_datos';
-    else estado = dentroDeBanda(valor, minimo, maximo) ? 'cumple' : 'fuera';
+    else estado = nivel === 'bueno' ? 'cumple' : 'fuera';
 
     return {
       tipo_codigo: mag.codigo,
@@ -202,6 +247,7 @@ export function calcularCumplimiento(
       valor,
       medido_en: ultimo?.medido_en ?? null,
       estado,
+      nivel,
       banda: texto,
       minimo,
       maximo,
