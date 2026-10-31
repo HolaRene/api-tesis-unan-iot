@@ -29,6 +29,17 @@ export interface MedicionReciente {
   valor_json: Record<string, unknown> | null;
   calidad: string;
   registrado_en: string | null;
+  /**
+   * Nivel calculado con las reglas del canal, ANTES de emitir.
+   *
+   * Se calcula aquí y no en la web para que la tarjeta se pinte con la
+   * MISMA lógica que el panel y las alertas: si el navegador lo calculara
+   * por su cuenta, podrían discrepar ante el mismo valor.
+   *
+   * Opcional porque se calcula en la ingesta; si faltara, la web mantiene
+   * el nivel anterior hasta el siguiente refresco.
+   */
+  nivel?: string;
 }
 
 /**
@@ -90,6 +101,7 @@ export function emitirCanalesActualizados(
         ultimo_valor_texto: m.valor_texto,
         ultimo_valor_booleano: m.valor_booleano,
         calidad: m.calidad,
+        ultimo_nivel: m.nivel,
         registrado_en: m.registrado_en,
       },
       emitido_en: new Date().toISOString(),

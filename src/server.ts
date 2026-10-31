@@ -13,6 +13,7 @@ import {
   cerrarServidorRealtime,
   montarServidorRealtime,
 } from './realtime/websocket.servidor.js';
+import { sembrarPlantillasDesdeJson } from './modules/plantillas-alerta/plantilla-alerta.service.js';
 
 /**
  *  Punto de entrada de la API. Configura el servidor Express y gestiona
@@ -31,6 +32,22 @@ async function iniciarServidor(): Promise<void> {
     iniciarWatchdogDispositivos();
     // Job de seguridad: descarta comandos que nadie recogió a tiempo.
     iniciarExpiracionComandos();
+
+    /*
+     * Siembra de normas: copia los JSON de src/plantillas-alerta a la tabla
+     * `plantillas_alerta`. Idempotente, así que puede correr en cada
+     * arranque. No bloquea el servidor: si fallara, la API sigue sirviendo
+     * con las normas que ya hubiera en la base.
+     */
+    sembrarPlantillasDesdeJson()
+      .then((n) =>
+        console.log(`[api] Normas sembradas desde JSON: ${n}`)
+      )
+      .catch((e) =>
+        console.error(
+          `[api] No se pudieron sembrar las normas: ${e instanceof Error ? e.message : e}`
+        )
+      );
   });
 
   // Capa realtime: WebSocket sobre el mismo servidor HTTP.

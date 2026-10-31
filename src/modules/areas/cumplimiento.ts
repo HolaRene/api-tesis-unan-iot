@@ -45,6 +45,8 @@ export type NivelMedicion =
   | 'bueno'
   | 'advertencia'
   | 'critico'
+  /** El sensor está averiado: no hay valor que comparar. */
+  | 'falla'
   | 'sin_datos'
   | 'sin_regla';
 
@@ -88,6 +90,18 @@ export interface CumplimientoMagnitud {
   cubierta: boolean;
   /** Alguno de sus valores está marcado [verificar]. */
   requiere_verificacion: boolean;
+  /**
+   * De dónde salieron las reglas con las que se clasificó.
+   *
+   *   'canal'    → reglas propias del canal en `reglas_alerta`
+   *   'area'     → respaldo en la norma del área (ningún canal tenía reglas)
+   *   null       → no hay reglas de ningún tipo
+   *
+   * Importa para explicar por qué un valor sale «bueno»: puede serlo por una
+   * regla que alguien configuró en ese canal o por la norma general del
+   * recinto, y no es lo mismo.
+   */
+  origen_reglas: 'canal' | 'area' | null;
 }
 
 /**
@@ -181,7 +195,13 @@ function reglasDeTipo(
 export function calcularCumplimiento(
   plantilla: PlantillaAlerta | null,
   magnitudes: { codigo: string; nombre: string; unidad: string | null }[],
-  ultimos: Map<string, { valor: number | null; medido_en: Date | null }>
+  ultimos: Map<string, { valor: number | null; medido_en: Date | null }>,
+  /*
+   * De dónde salieron las reglas. Por defecto 'area': la función se creó
+   * para clasificar con la norma del recinto, y ese sigue siendo su uso
+   * principal.
+   */
+  origen: 'canal' | 'area' = 'area'
 ): CumplimientoMagnitud[] {
   return magnitudes.map((mag) => {
     const ultimo = ultimos.get(mag.codigo.toUpperCase());
@@ -201,6 +221,7 @@ export function calcularCumplimiento(
         maximo: null,
         cubierta: false,
         requiere_verificacion: false,
+        origen_reglas: null,
       };
     }
 
@@ -227,6 +248,7 @@ export function calcularCumplimiento(
         maximo: null,
         cubierta: false,
         requiere_verificacion: false,
+        origen_reglas: null,
       };
     }
 
@@ -253,6 +275,7 @@ export function calcularCumplimiento(
       maximo,
       cubierta: true,
       requiere_verificacion: requiereVerificacion,
+      origen_reglas: origen,
     };
   });
 }

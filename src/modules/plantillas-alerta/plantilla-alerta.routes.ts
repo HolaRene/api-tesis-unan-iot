@@ -8,6 +8,12 @@ import {
   obtenerPlantilla,
   reglasAplicables,
 } from './plantilla-alerta.service.js';
+import * as plantillaService from './plantilla-alerta.service.js';
+import {
+  esquemaCrearPlantilla,
+  esquemaActualizarPlantilla,
+  esquemaEvaluar,
+} from './plantilla-alerta.schema.js';
 import { reglaService } from '../reglas-alerta/regla-alerta.service.js';
 import { canalService } from '../canales/canal.service.js';
 
@@ -110,6 +116,111 @@ router.post('/:id/aplicar', requiereRol('usuario', 'admin'), async (req, res, ne
       },
       201
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* =====================================================================
+   CRUD de normas (solo administradores)
+   =====================================================================
+   Las normas de origen `sistema` (sembradas desde los JSON) se pueden
+   editar pero NO borrar: si se borraran, el siguiente arranque las volvería
+   a crear y el usuario no entendería por qué reaparecen.
+   ===================================================================== */
+
+/** POST /plantillas-alerta — crear una norma propia. */
+router.post('/', requiereRol('admin'), async (req, res, next) => {
+  try {
+    const datos = esquemaCrearPlantilla.parse(req.body);
+    const creada = await plantillaService.crearPlantilla(datos);
+    responderExito(res, creada, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** PUT /plantillas-alerta/:id — editar una norma (de sistema o propia). */
+router.put('/:id', requiereRol('admin'), async (req, res, next) => {
+  try {
+    const datos = esquemaActualizarPlantilla.parse(req.body);
+    const actualizada = await plantillaService.actualizarPlantilla(
+      String(req.params.id),
+      datos
+    );
+    responderExito(res, actualizada, 200);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** DELETE /plantillas-alerta/:id — borrar una norma propia. */
+router.delete('/:id', requiereRol('admin'), async (req, res, next) => {
+  try {
+    await plantillaService.eliminarPlantilla(String(req.params.id));
+    responderExito(res, { eliminada: String(req.params.id) }, 200);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* =====================================================================
+   Aplicar una norma a TODAS las áreas
+   ===================================================================== */
+
+/**
+ * POST /plantillas-alerta/:id/aplicar-area
+ *
+ * Crea las reglas de la norma en todos los canales del área y, además,
+ * deja constancia del perfil en `areas.perfil_alerta`.
+ *
+ * Informa de lo creado, lo repetido y lo omitido: aplicar dos veces una
+ * norma no debe duplicar reglas.
+ */
+router.post('/:id/aplicar-area', requiereRol('usuario', 'admin'), async (req, res, next) => {
+  try {
+    const plantillaId = String(req.params.id);
+    const areaId = String((req.body as { area_id?: unknown })?.area_id ?? '');
+
+    if (!areaId) {
+      res.status(400).json({ exito: false, mensaje: 'Falta el área' });
+      return;
+    }
+
+    const resultado = await plantillaService.aplicarAArea(
+      plantillaId,
+      areaId,
+      req.usuario
+    );
+    responderExito(res, resultado, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* =====================================================================
+   Evaluar un valor con unas reglas — SIN estado, SIN base de datos
+   ===================================================================== */
+
+/**
+ * POST /plantillas-alerta/evaluar
+ *
+ * Devuelve el nivel (`bueno`, `advertencia`, `critico`…) que tendría un
+ * valor con las reglas dadas.
+ *
+ * Existe para que el formulario de reglas muestre la vista previa usando la
+ * MISMA implementación que el panel y las alertas. Si la web reimplementara
+ * la clasificación, ambas podrían discrepar.
+ */
+router.post('/evaluar', async (req, res, next) => {
+  try {
+    const { valor, reglas, calidad } = esquemaEvaluar.parse(req.body);
+    const nivel = plantillaService.evaluarConReglas(
+      valor ?? null,
+      reglas,
+      calidad
+    );
+    responderExito(res, { nivel }, 200);
   } catch (error) {
     next(error);
   }

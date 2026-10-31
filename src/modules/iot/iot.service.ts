@@ -8,6 +8,10 @@ import type {
 import { measurementService } from '../measurements/measurement.service.js';
 import { comandoActuadorService } from '../comandos-actuador/comando-actuador.service.js';
 import { diagnosticarValor } from './falla-lazo.js';
+import {
+  clasificarNivel,
+  reglasDeCanalConCache,
+} from '../reglas-alerta/nivel.js';
 import { deviceService } from '../devices/device.service.js';
 import type { Device } from '../devices/device.types.js';
 import {
@@ -146,6 +150,26 @@ export const iotService = {
       } catch (error) {
         fallidas += 1;
       }
+    }
+
+    /*
+     * NIVEL antes de emitir.
+     *
+     * Se calcula aquí, con las reglas del canal, para que la tarjeta del
+     * navegador actualice su color sin pedir nada más. Las reglas se leen
+     * con caché (30 s) porque llegan muchas mediciones por segundo y una
+     * consulta por medición sería inviable.
+     *
+     * Va DESPUÉS de guardar: si se calculara antes y el INSERT fallara, se
+     * emitiría un nivel para una medición que no existe.
+     */
+    for (const g of guardadas) {
+      if (!g.canal_id) continue;
+      g.nivel = clasificarNivel(
+        g.valor_numerico,
+        await reglasDeCanalConCache(g.canal_id),
+        g.calidad
+      );
     }
 
     // --- Realtime (SIEMPRE después del COMMIT de cada INSERT) ---

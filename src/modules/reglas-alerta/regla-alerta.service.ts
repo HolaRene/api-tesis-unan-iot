@@ -1,6 +1,7 @@
 import { ApiError } from '../../utils/api-error.js';
 import { canalRepository } from '../canales/canal.repository.js';
 import { reglaRepository } from './regla-alerta.repository.js';
+import { invalidarCacheNivel } from './nivel.js';
 import { OPERADORES_NUMERIC, OPERADORES_BOOLEAN, OPERADORES_TEXT } from './regla-alerta.schema.js';
 import type {
   FilaReglaDetalle,
@@ -28,6 +29,8 @@ export const reglaService = {
     const tipoDato = (canal.tipo_dato ?? 'text').toLowerCase();
     this.validarOperador(entrada.operador, tipoDato, canal.codigo);
     const regla = await reglaRepository.crear(entrada);
+    // Un umbral nuevo debe aplicar al siguiente valor, no 30 s después.
+    invalidarCacheNivel(entrada.canal_id);
     return regla as FilaReglaDetalle;
   },
 
@@ -47,12 +50,16 @@ export const reglaService = {
     }
     const regla = await reglaRepository.actualizar(id, entrada);
     if (!regla) throw ApiError.notFound('Regla de alerta no encontrada');
+    invalidarCacheNivel(regla.canal_id);
     return regla;
   },
 
   async eliminar(id: string): Promise<void> {
+    // Se lee antes de borrar: después ya no se sabe a qué canal pertenecía.
+    const previa = await reglaRepository.buscarPorId(id);
     const ok = await reglaRepository.eliminar(id);
     if (!ok) throw ApiError.notFound('Regla de alerta no encontrada');
+    if (previa?.canal_id) invalidarCacheNivel(previa.canal_id);
   },
 
   /** Lanza error de negocio si el operador no es válido para el tipo de dato. */

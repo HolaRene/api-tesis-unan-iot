@@ -45,6 +45,13 @@ export interface FilaCanalDetalle {
   // última medición
   ultima_medicion_id?: number | null;
   ultimo_valor_numerico?: number | null;
+  /** Calidad de la última medición (`good` / `bad`). */
+  ultima_calidad?: string | null;
+  /**
+   * Nivel del último valor según las reglas del canal.
+   * Se calcula al leer; no está en la tabla.
+   */
+  ultimo_nivel?: 'bueno' | 'advertencia' | 'critico' | 'falla' | 'sin_datos' | 'sin_regla';
   ultimo_valor_texto?: string | null;
   ultimo_valor_booleano?: boolean | null;
   ultimo_registrado_en?: string | null;

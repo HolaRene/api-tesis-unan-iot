@@ -8,6 +8,7 @@ import type {
   SeriesAgregadas,
 } from './measurement.types.js';
 import { measurementRepository } from './measurement.repository.js';
+import { clasificarNivel, reglasPorCanal } from '../reglas-alerta/nivel.js';
 import { alertRepository } from '../alerts/alert.repository.js';
 import { alertService } from '../alerts/alert.service.js';
 import { sensorRepository } from '../sensors/sensor.repository.js';
@@ -28,13 +29,38 @@ interface UmbralActivo {
  * AISLAMIENTO: la medición hereda la propiedad del dispositivo de su canal.
  * Las operaciones de la API reciben el usuario; las de IoT no.
  */
+
+/**
+ * Añade `nivel` a una lista de mediciones.
+ *
+ * Una sola consulta para todos los canales de la página: pedir las reglas
+ * fila a fila sería un N+1 (100 mediciones → 100 consultas).
+ */
+async function conNivel(mediciones: Measurement[]): Promise<Measurement[]> {
+  if (mediciones.length === 0) return mediciones;
+
+  const porCanal = await reglasPorCanal(
+    mediciones.map((m) => m.canal_id ?? '').filter(Boolean)
+  );
+
+  return mediciones.map((m) => ({
+    ...m,
+    nivel: clasificarNivel(
+      m.valor_numerico,
+      m.canal_id ? (porCanal.get(m.canal_id) ?? []) : [],
+      m.calidad
+    ),
+  }));
+}
+
 export const measurementService = {
   /** Lista mediciones visibles para el usuario (filtros opcionales). */
   async listar(
     filtro: FiltrarMediciones,
     usuario?: UsuarioAlcance | null
   ): Promise<Measurement[]> {
-    return measurementRepository.listar(filtro, usuario);
+    const mediciones = await measurementRepository.listar(filtro, usuario);
+    return conNivel(mediciones);
   },
 
   /**
@@ -50,7 +76,8 @@ export const measurementService = {
       const sensor = await sensorRepository.buscarPorId(sensorId, usuario);
       if (!sensor) throw ApiError.notFound('Sensor no encontrado');
     }
-    return measurementRepository.listarHistorialSensor(sensorId, filtro);
+    const mediciones = await measurementRepository.listarHistorialSensor(sensorId, filtro);
+    return conNivel(mediciones);
   },
 
   /**
@@ -66,7 +93,8 @@ export const measurementService = {
       const canal = await canalRepository.buscarPorId(canalId, usuario);
       if (!canal) throw ApiError.notFound('Canal no encontrado');
     }
-    return measurementRepository.listarHistorialCanal(canalId, filtro);
+    const mediciones = await measurementRepository.listarHistorialCanal(canalId, filtro);
+    return conNivel(mediciones);
   },
 
   /**

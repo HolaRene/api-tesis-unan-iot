@@ -1,6 +1,7 @@
 import { ApiError } from '../../utils/api-error.js';
 import { query } from '../../database/pool.js';
 import { canalRepository } from './canal.repository.js';
+import { clasificarNivel, reglasPorCanal } from '../reglas-alerta/nivel.js';
 import type {
   FilaCanalDetalle,
   CrearCanalInput,
@@ -18,13 +19,38 @@ function aNumero(valor: number | string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+
+/**
+ * Añade `ultimo_nivel` a una lista de canales.
+ *
+ * Las reglas de todos los canales se piden en UNA consulta: pedirlas canal a
+ * canal sería un N+1 (una tarjeta por canal → una consulta por tarjeta).
+ */
+async function conUltimoNivel(
+  canales: FilaCanalDetalle[]
+): Promise<FilaCanalDetalle[]> {
+  if (canales.length === 0) return canales;
+
+  const porCanal = await reglasPorCanal(canales.map((c) => c.id));
+
+  return canales.map((c) => ({
+    ...c,
+    ultimo_nivel: clasificarNivel(
+      c.ultimo_valor_numerico ?? null,
+      porCanal.get(c.id) ?? [],
+      c.ultima_calidad
+    ),
+  }));
+}
+
 export const canalService = {
   /** Lista canales visibles para el usuario (filtros opcionales). */
   async listar(
     filtro?: FiltroCanales,
     usuario?: UsuarioAlcance | null
   ): Promise<FilaCanalDetalle[]> {
-    return canalRepository.listar(filtro, usuario);
+    const canales = await canalRepository.listar(filtro, usuario);
+    return conUltimoNivel(canales);
   },
 
   /** Canal por id (404 si no existe o no es visible para el usuario). */

@@ -47,7 +47,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIR_PLANTILLAS = path.resolve(__dirname, '../../plantillas-alerta');
 
 /** Esquema de una regla dentro de una plantilla. */
-const reglaPlantillaSchema = z.object({
+export const reglaPlantillaSchema = z.object({
   variable: z.string().min(1),
   tipos_variable: z.array(z.string()).min(1),
   nombre: z.string().min(1).max(120),
@@ -71,16 +71,24 @@ const plantillaSchema = z.object({
   reglas: z.array(reglaPlantillaSchema).min(1),
 });
 
+import { plantillaRepository } from './plantilla-alerta.repository.js';
+import { areaService } from '../areas/area.service.js';
+import { canalService } from '../canales/canal.service.js';
+import { reglaService } from '../reglas-alerta/regla-alerta.service.js';
+import { clasificarNivel } from '../areas/cumplimiento.js';
+import type { UsuarioAlcance } from '../../utils/alcance.js';
+
 export type PlantillaAlerta = z.infer<typeof plantillaSchema>;
 export type ReglaPlantilla = z.infer<typeof reglaPlantillaSchema>;
 
 /**
- * Lee y valida todos los archivos de plantilla.
+ * Lee y valida los archivos JSON del repositorio.
  *
- * Se leen en cada llamada (son archivos pequeños): así editar un JSON y
- * reiniciar basta, sin caché que se quede obsoleta durante el desarrollo.
+ * Ya NO son la fuente de lectura normal: se usan solo para SEMBRAR la tabla
+ * `plantillas_alerta` al arrancar. Las normas se sirven desde la base para
+ * que un administrador pueda crear y editar las suyas sin tocar código.
  */
-export async function listarPlantillas(): Promise<PlantillaAlerta[]> {
+export async function leerPlantillasDeArchivos(): Promise<PlantillaAlerta[]> {
   const archivos = (await readdir(DIR_PLANTILLAS)).filter((f) => f.endsWith('.json'));
   const plantillas: PlantillaAlerta[] = [];
 
@@ -108,10 +116,33 @@ export async function listarPlantillas(): Promise<PlantillaAlerta[]> {
   return plantillas;
 }
 
-/** Busca una plantilla por su id. */
-export async function obtenerPlantilla(id: string): Promise<PlantillaAlerta> {
-  const todas = await listarPlantillas();
-  const encontrada = todas.find((p) => p.id === id);
+/**
+ * Copia las normas de los JSON a la base de datos.
+ *
+ * Idempotente: se ejecuta al arrancar la API. Solo actualiza las de origen
+ * `sistema`, así que NO pisa las ediciones que haga un administrador sobre
+ * una norma sembrada... salvo el nombre/norma del JSON, que se refresca.
+ */
+export async function sembrarPlantillasDesdeJson(): Promise<number> {
+  const plantillas = await leerPlantillasDeArchivos();
+  for (const p of plantillas) {
+    await plantillaRepository.sembrar(p);
+  }
+  return plantillas.length;
+}
+
+/** Lista las normas (de sistema y propias). */
+export async function listarPlantillas(): Promise<
+  (PlantillaAlerta & { origen: string })[]
+> {
+  return plantillaRepository.listar();
+}
+
+/** Busca una norma por su id. */
+export async function obtenerPlantilla(
+  id: string
+): Promise<PlantillaAlerta & { origen: string }> {
+  const encontrada = await plantillaRepository.buscarPorId(id);
   if (!encontrada) {
     throw ApiError.notFound(`No existe la plantilla '${id}'`);
   }
@@ -137,4 +168,197 @@ export function reglasAplicables(
   }
 
   return { aplicables, omitidas };
+}
+
+/* =====================================================================
+   CRUD de normas
+   ===================================================================== */
+
+/** Crea una norma propia (`origen = 'usuario'`). */
+export async function crearPlantilla(datos: {
+  id: string;
+  nombre: string;
+  descripcion?: string | null;
+  norma: string;
+  notas?: string[];
+  reglas: ReglaPlantilla[];
+}): Promise<PlantillaAlerta & { origen: string }> {
+  if (await plantillaRepository.existe(datos.id)) {
+    throw ApiError.conflict(
+      `Ya existe una norma con el identificador '${datos.id}'`
+    );
+  }
+
+  return plantillaRepository.crear({
+    id: datos.id,
+    nombre: datos.nombre,
+    descripcion: datos.descripcion ?? null,
+    norma: datos.norma,
+    notas: datos.notas ?? [],
+    reglas: datos.reglas,
+  });
+}
+
+/** Edita una norma. Las de sistema se pueden editar, pero no borrar. */
+export async function actualizarPlantilla(
+  id: string,
+  datos: {
+    nombre?: string;
+    descripcion?: string | null;
+    norma?: string;
+    notas?: string[];
+    reglas?: ReglaPlantilla[];
+  }
+): Promise<PlantillaAlerta & { origen: string }> {
+  const actualizada = await plantillaRepository.actualizar(id, datos);
+  if (!actualizada) {
+    throw ApiError.notFound(`No existe la norma '${id}'`);
+  }
+  return actualizada;
+}
+
+/**
+ * Borra una norma propia.
+ *
+ * Las de sistema no se pueden borrar: el siguiente arranque las volvería a
+ * sembrar desde el JSON y reaparecerían sin explicación.
+ */
+export async function eliminarPlantilla(id: string): Promise<void> {
+  const existente = await plantillaRepository.buscarPorId(id);
+  if (!existente) {
+    throw ApiError.notFound(`No existe la norma '${id}'`);
+  }
+  if (existente.origen === 'sistema') {
+    throw ApiError.badRequest(
+      'Las normas de sistema no se pueden borrar. Puedes editarlas o desactivarlas.'
+    );
+  }
+
+  const borrada = await plantillaRepository.eliminar(id);
+  if (!borrada) {
+    throw ApiError.badRequest(`No se pudo borrar la norma '${id}'`);
+  }
+}
+
+/* =====================================================================
+   Aplicar una norma a todas las áreas
+   ===================================================================== */
+
+/**
+ * Aplica una norma a todos los canales de un área.
+ *
+ * Además de crear las reglas, guarda el id en `areas.perfil_alerta` para que
+ * el área recuerde a qué norma se somete (lo usa la vista de cumplimiento).
+ *
+ * Evita duplicados: si un canal ya tiene una regla con el mismo nombre
+ * procedente de la misma norma, no se vuelve a crear.
+ */
+export async function aplicarAArea(
+  plantillaId: string,
+  areaId: string,
+  usuario?: UsuarioAlcance | null
+): Promise<{
+  plantilla: string;
+  area_id: string;
+  creadas: number;
+  repetidas: number;
+  omitidas: { canal: string; variable: string; motivo: string }[];
+  canales: number;
+}> {
+  const plantilla = await obtenerPlantilla(plantillaId);
+
+  // El área se busca con el alcance del usuario: aplica el aislamiento.
+  const area = await areaService.obtenerPorId(areaId, usuario);
+
+  const canales = await canalService.listar({ area_id: areaId }, usuario);
+
+  let creadas = 0;
+  let repetidas = 0;
+  const omitidas: { canal: string; variable: string; motivo: string }[] = [];
+
+  for (const canal of canales) {
+    const { aplicables, omitidas: noEncajan } = reglasAplicables(
+      plantilla,
+      canal.tipo_codigo
+    );
+
+    for (const r of noEncajan) {
+      omitidas.push({
+        canal: canal.codigo,
+        variable: r.variable,
+        motivo: `Requiere un canal de tipo ${r.tipos_variable.join(' o ')} y este es ${canal.tipo_codigo ?? 'desconocido'}`,
+      });
+    }
+
+    const existentes = await reglaService.listar({
+      canal_id: canal.id,
+      activa: true,
+    });
+    const nombresExistentes = new Set(
+      existentes
+        .filter((e) => e.plantilla_id === plantilla.id)
+        .map((e) => e.nombre)
+    );
+
+    for (const regla of aplicables) {
+      if (nombresExistentes.has(regla.nombre)) {
+        repetidas += 1;
+        continue;
+      }
+
+      await reglaService.crear({
+        canal_id: canal.id,
+        nombre: regla.nombre,
+        descripcion: `Norma «${plantilla.nombre}» · variable: ${regla.variable}`,
+        operador: regla.operador,
+        valor_referencia_numerico: regla.valor_referencia_numerico ?? null,
+        valor_min: regla.valor_min ?? null,
+        valor_max: regla.valor_max ?? null,
+        valor_referencia_texto: regla.valor_referencia_texto ?? null,
+        severidad: regla.severidad,
+        mensaje: regla.mensaje ?? null,
+        activa: true,
+        retardo_segundos: regla.retardo_segundos ?? null,
+        histeresis: regla.histeresis ?? null,
+        plantilla_id: plantilla.id,
+        norma: plantilla.norma,
+        requiere_verificacion: /\[verificar\]/i.test(regla.mensaje ?? ''),
+      });
+      creadas += 1;
+    }
+  }
+
+  // Dejar constancia del perfil en el área.
+  await areaService.actualizar(areaId, { perfil_alerta: plantilla.id }, usuario);
+
+  return {
+    plantilla: plantilla.id,
+    area_id: area.id,
+    creadas,
+    repetidas,
+    omitidas,
+    canales: canales.length,
+  };
+}
+
+/* =====================================================================
+   Evaluación puntual (vista previa del formulario)
+   ===================================================================== */
+
+/**
+ * Devuelve el nivel de un valor con unas reglas dadas.
+ *
+ * `calidad = 'bad'` devuelve `falla` sin mirar las reglas: un sensor
+ * averiado no tiene un valor que se pueda comparar con nada.
+ *
+ * ⚠️ Usa `clasificarNivel`, la MISMA función que el panel y las alertas.
+ * Si la web reimplementara esto, ambas vistas podrían discrepar.
+ */
+export function evaluarConReglas(
+  valor: number | null,
+  reglas: ReglaPlantilla[],
+  calidad?: string
+): string {
+  if ((calidad ?? 'good').toLowerCase() === 'bad') return 'falla';
+  return clasificarNivel(valor, reglas);
 }

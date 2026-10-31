@@ -6,7 +6,13 @@ import type {
 } from './area.types.js';
 import { areaRepository } from './area.repository.js';
 import type { UsuarioAlcance } from '../../utils/alcance.js';
-import { calcularCumplimiento } from './cumplimiento.js';
+import {
+  calcularCumplimiento,
+  describirBanda,
+} from './cumplimiento.js';
+  // Ojo: el del módulo común es el que entiende la calidad.
+  import { clasificarNivel } from '../reglas-alerta/nivel.js';
+import type { ReglaPlantilla } from '../plantillas-alerta/plantilla-alerta.service.js';
 import { listarPlantillas } from '../plantillas-alerta/plantilla-alerta.service.js';
 
 /**
@@ -97,23 +103,77 @@ export const areaService = {
       plantilla = plantillas.find((p) => p.id === plantillaId) ?? null;
     }
 
-    const magnitudes = await areaRepository.ultimosValoresPorMagnitud(id);
-    const ultimos = new Map(
-      magnitudes.map((m) => [
-        m.codigo.toUpperCase(),
-        { valor: m.valor, medido_en: m.medido_en },
-      ])
-    );
+    const magnitudes = await areaRepository.ultimosValoresConReglas(id);
 
-    const comprometidas = calcularCumplimiento(
-      plantilla,
-      magnitudes.map((m) => ({
-        codigo: m.codigo,
-        nombre: m.nombre,
-        unidad: m.unidad,
-      })),
-      ultimos
-    );
+    /*
+     * LAS REGLAS DEL CANAL MANDAN.
+     *
+     * Si un canal tiene sus propias reglas activas, se clasifica con ellas:
+     * alguien las ajustó a propósito para ESE sensor, y eso pesa más que la
+     * banda general de la norma del recinto.
+     *
+     * Solo cuando el canal no tiene ninguna se recurre a la plantilla del
+     * área. Se indica en `origen_reglas` para que la web pueda explicarlo.
+     */
+    /*
+     * Las REGLAS DEL CANAL MANDAN sobre la norma del área: si alguien
+     * ajustó la temperatura de ESTE sensor a 22–26 °C, se clasifica con
+     * eso, no con la banda general del recinto. Solo los canales sin
+     * reglas propias recurren a la plantilla del área.
+     *
+     * `origen_reglas` lo indica para que la web pueda explicarlo.
+     */
+    const clasificar = (m: (typeof magnitudes)[number]) => {
+      const reglasCanal = m.reglas as ReglaPlantilla[];
+
+      if (reglasCanal.length > 0) {
+        /*
+         * La calidad se pasa SIEMPRE: un sensor en falla (-32768) no tiene
+         * un valor comparable con un umbral. Sin esto saldría «crítico»
+         * (temperatura bajísima) cuando lo correcto es «falla de sensor».
+         */
+        const nivel = clasificarNivel(m.valor, reglasCanal, m.calidad);
+        const banda = reglasCanal.find((r) => r.severidad === 'warning') ?? reglasCanal[0];
+        const descrita = banda ? describirBanda(banda) : null;
+        return {
+          tipo_codigo: m.codigo,
+          tipo_nombre: m.nombre,
+          unidad: m.unidad,
+          valor: m.valor,
+          medido_en: m.medido_en,
+          estado: m.valor === null ? 'sin_datos' : nivel === 'bueno' ? 'cumple' : 'fuera',
+          nivel,
+          banda: descrita?.texto ?? null,
+          minimo: descrita?.minimo ?? null,
+          maximo: descrita?.maximo ?? null,
+          cubierta: true,
+          requiere_verificacion: reglasCanal.some((r) => /\[verificar\]/i.test(r.mensaje ?? '')),
+          origen_reglas: 'canal',
+        };
+      }
+
+      // Sin reglas propias: se usa la norma del área.
+      const resultado = calcularCumplimiento(
+        plantilla,
+        [{ codigo: m.codigo, nombre: m.nombre, unidad: m.unidad }],
+        new Map([
+          [
+            m.codigo.toUpperCase(),
+            { valor: m.valor, medido_en: m.medido_en },
+          ],
+        ]),
+        'area'
+      )[0];
+
+      // Respaldo con la norma del área: la calidad manda igual.
+      if ((m.calidad ?? 'good').toLowerCase() === 'bad') {
+        resultado.nivel = 'falla';
+        resultado.estado = 'fuera';
+      }
+      return resultado;
+    };
+
+    const comprometidas = magnitudes.map(clasificar);
 
     return {
       area: { id: area.id, nombre: area.nombre, perfil_alerta: plantillaId },
@@ -133,6 +193,7 @@ export const areaService = {
         bueno: comprometidas.filter((m) => m.nivel === 'bueno').length,
         advertencia: comprometidas.filter((m) => m.nivel === 'advertencia').length,
         critico: comprometidas.filter((m) => m.nivel === 'critico').length,
+        falla: comprometidas.filter((m) => m.nivel === 'falla').length,
         sin_datos: comprometidas.filter((m) => m.estado === 'sin_datos').length,
         sin_regla: comprometidas.filter((m) => m.estado === 'sin_regla').length,
       },

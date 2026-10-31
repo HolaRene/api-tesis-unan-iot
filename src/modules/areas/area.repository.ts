@@ -198,4 +198,82 @@ export const areaRepository = {
     );
     return r.rows;
   },
+
+  /**
+   * Último valor de cada magnitud del área JUNTO CON sus reglas activas.
+   *
+   * Las reglas del canal mandan sobre la norma del área: si alguien ajustó
+   * la temperatura de ESTE canal a 22–26, se clasifica con eso, no con la
+   * banda general de la norma.
+   *
+   * Se devuelve una fila por canal con sus reglas agregadas en JSON, para
+   * clasificar en el servicio sin una consulta por magnitud (N+1).
+   */
+  async ultimosValoresConReglas(areaId: string): Promise<
+    {
+      codigo: string;
+      nombre: string;
+      unidad: string | null;
+      valor: number | null;
+      calidad: string | null;
+      medido_en: Date | null;
+      reglas: unknown[];
+    }[]
+  > {
+    const r = await query<{
+      codigo: string;
+      nombre: string;
+      unidad: string | null;
+      valor: number | null;
+      calidad: string | null;
+      medido_en: Date | null;
+      reglas: unknown;
+    }>(
+      `WITH canales_del_area AS (
+         SELECT c.id, t.codigo, t.nombre, t.unidad_default AS unidad
+           FROM canales c
+           JOIN tipos_variable t ON t.id = c.tipo_variable_id
+           JOIN sensores s       ON s.id = c.sensor_id
+           JOIN dispositivos d   ON d.id = s.dispositivo_id
+          WHERE d.area_id = $1
+       ),
+       ultima AS (
+         SELECT DISTINCT ON (m.canal_id)
+                m.canal_id, m.valor_numerico, m.calidad, m.registrado_en
+           FROM mediciones m
+           JOIN canales_del_area ca ON ca.id = m.canal_id
+          ORDER BY m.canal_id, m.registrado_en DESC
+       )
+       SELECT
+         ca.codigo,
+         ca.nombre,
+         ca.unidad,
+         ult.valor_numerico AS valor,
+         ult.calidad,
+         ult.registrado_en AS medido_en,
+         COALESCE(
+           (SELECT jsonb_agg(jsonb_build_object(
+                     'nombre', ra.nombre,
+                     'operador', ra.operador,
+                     'valor_referencia_numerico', ra.valor_referencia_numerico,
+                     'valor_min', ra.valor_min,
+                     'valor_max', ra.valor_max,
+                     'severidad', ra.severidad,
+                     'mensaje', ra.mensaje
+                   ))
+              FROM reglas_alerta ra
+             WHERE ra.canal_id = ca.id AND ra.activa = TRUE),
+           '[]'::jsonb
+         ) AS reglas
+         FROM canales_del_area ca
+         LEFT JOIN ultima ult ON ult.canal_id = ca.id
+        ORDER BY ca.codigo`,
+      [areaId]
+    );
+
+    return r.rows.map((f) => ({
+      ...f,
+      reglas: Array.isArray(f.reglas) ? f.reglas : [],
+    }));
+  },
 };

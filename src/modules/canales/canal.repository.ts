@@ -24,6 +24,7 @@ const SELECT_CANAL = `
   ult.id AS ultima_medicion_id,
   ult.valor_numerico AS ultimo_valor_numerico, ult.valor_texto AS ultimo_valor_texto,
   ult.valor_booleano AS ultimo_valor_booleano, ult.registrado_en AS ultimo_registrado_en,
+  ult.calidad AS ultima_calidad,
   cmn.contar AS cantidad_mediciones,
   FALSE AS alerta_activa -- FASE2: sustituir por EXISTS sobre alertas.canal_id
 `;
@@ -35,7 +36,8 @@ const FROM_CANAL = `
   LEFT JOIN areas a ON a.id = d.area_id
   LEFT JOIN tipos_variable tv ON tv.id = c.tipo_variable_id
   LEFT JOIN LATERAL (
-    SELECT m.id, m.valor_numerico, m.valor_texto, m.valor_booleano, m.registrado_en
+    SELECT m.id, m.valor_numerico, m.valor_texto, m.valor_booleano,
+           m.registrado_en, m.calidad
     FROM mediciones m WHERE m.canal_id = c.id ORDER BY m.registrado_en DESC LIMIT 1
   ) ult ON true
   LEFT JOIN LATERAL (

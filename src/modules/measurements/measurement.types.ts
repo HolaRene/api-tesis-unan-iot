@@ -17,6 +17,14 @@ export interface Measurement {
   calidad: string;
   registrado_en: Date;
   metadatos: Record<string, unknown> | null;
+  /**
+   * Nivel calculado AL LEER con las reglas del canal.
+   *
+   * No se guarda en la tabla: es una interpretación del valor, no un dato
+   * medido. Cambiar un umbral cambia el nivel del histórico sin reescribir
+   * nada.
+   */
+  nivel?: 'bueno' | 'advertencia' | 'critico' | 'falla' | 'sin_datos' | 'sin_regla';
 }
 
 /**
