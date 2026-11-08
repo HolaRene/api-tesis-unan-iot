@@ -6,6 +6,7 @@ import type {
   CrearComandoWebInput,
 } from './comando-actuador.types.js';
 import { comandoActuadorRepository } from './comando-actuador.repository.js';
+import type { UsuarioAlcance } from '../../utils/alcance.js';
 import {
   emitirComandoActualizado,
   emitirActuadorActualizado,
@@ -39,8 +40,28 @@ export const comandoActuadorService = {
   /**
    * Registra un comando desde la web (usuario autenticado por JWT).
    */
-  async crearDesdeWeb(entrada: CrearComandoWebInput): Promise<ComandoActuadorConRelaciones> {
-    await this.existeActuador(entrada.actuador_id);
+  async crearDesdeWeb(
+    entrada: CrearComandoWebInput,
+    usuario?: UsuarioAlcance | null
+  ): Promise<ComandoActuadorConRelaciones> {
+    /*
+     * `usuario` es imprescindible aquí: sin él, cualquiera con sesión podía
+     * enviar órdenes a actuadores de OTRO usuario conociendo su id.
+     */
+    const actuador = await this.existeActuador(entrada.actuador_id, usuario);
+
+    /*
+     * Un actuador desactivado no debe recibir órdenes.
+     *
+     * La integración (API Key) ya lo comprobaba, pero la web no: se podía
+     * encolar un comando para un equipo fuera de servicio. Node-RED lo
+     * ejecutaría igualmente, porque solo mira los pendientes.
+     */
+    if (!actuador.activo) {
+      throw ApiError.badRequest(
+        'El actuador está desactivado; no admite comandos.'
+      );
+    }
     const comando = await comandoActuadorRepository.crear({
       actuador_id: entrada.actuador_id,
       usuario_id: entrada.usuario_id,
@@ -86,8 +107,12 @@ export const comandoActuadorService = {
   },
 
   /** Consulta los últimos comandos de un actuador. */
-  async listarPorActuador(actuadorId: string, limite = 50) {
-    await this.existeActuador(actuadorId);
+  async listarPorActuador(
+    actuadorId: string,
+    limite = 50,
+    usuario?: UsuarioAlcance | null
+  ) {
+    await this.existeActuador(actuadorId, usuario);
     return comandoActuadorRepository.listarPorActuador(actuadorId, limite);
   },
 
@@ -200,12 +225,21 @@ export const comandoActuadorService = {
     return confirmado;
   },
 
-  /** Valida que el actuador exista. */
-  async existeActuador(actuadorId: string): Promise<void> {
-    const actuador = await actuadorRepository.buscarPorId(actuadorId);
+  /**
+   * Valida que el actuador exista Y sea visible para el usuario.
+   *
+   * Devuelve el actuador para que quien llama pueda comprobar además si
+   * está activo, sin repetir la consulta.
+   */
+  async existeActuador(
+    actuadorId: string,
+    usuario?: UsuarioAlcance | null
+  ) {
+    const actuador = await actuadorRepository.buscarPorId(actuadorId, usuario);
     if (!actuador) {
       throw ApiError.notFound('Actuador no encontrado');
     }
+    return actuador;
   },
 
   /**
@@ -219,7 +253,21 @@ export const comandoActuadorService = {
    */
   async expirarPendientes(minutos: number): Promise<number> {
     if (minutos <= 0) return 0;
-    return comandoActuadorRepository.expirarPendientes(minutos);
+
+    const { filas, total } = await comandoActuadorRepository.expirarPendientes(
+      minutos
+    );
+
+    /*
+     * Se avisa de cada comando caducado. Sin esto, la tarjeta del dashboard
+     * se quedaba en «encolado, esperando al equipo…» indefinidamente,
+     * aunque el comando ya no se fuera a ejecutar nunca.
+     */
+    for (const fila of filas) {
+      emitirComandoActualizado(fila);
+    }
+
+    return total;
   },
 
   /** Configuración de latencia/timeout por actuador (para Node-RED). */

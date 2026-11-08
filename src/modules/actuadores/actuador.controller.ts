@@ -12,9 +12,9 @@ import { actuadorService } from './actuador.service.js';
  */
 export const actuadorController = {
   /** GET /api/v1/actuadores */
-  async listar(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const actuadores = await actuadorService.listar();
+      const actuadores = await actuadorService.listar(req.usuario);
       responderExito(res, actuadores, 200);
     } catch (error) {
       next(error);
@@ -25,7 +25,7 @@ export const actuadorController = {
   async obtenerPorId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = idActuadorSchema.parse(req.params);
-      const actuador = await actuadorService.obtenerPorId(id);
+      const actuador = await actuadorService.obtenerPorId(id, req.usuario);
       responderExito(res, actuador, 200);
     } catch (error) {
       next(error);

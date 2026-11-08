@@ -26,13 +26,21 @@ export const comandoActuadorController = {
         return;
       }
 
-      const comando = await comandoActuadorService.crearDesdeWeb({
-        actuador_id: id,
-        usuario_id: usuarioId,
-        comando: entrada.comando,
-        valor: entrada.valor as Record<string, unknown> | undefined,
-        metadatos: entrada.metadatos,
-      });
+      /*
+       * Se pasa `req.usuario`: el servicio comprueba que el actuador sea
+       * visible. Sin esto, cualquiera con sesión podía enviar órdenes a los
+       * equipos de otro usuario indicando su id.
+       */
+      const comando = await comandoActuadorService.crearDesdeWeb(
+        {
+          actuador_id: id,
+          usuario_id: usuarioId,
+          comando: entrada.comando,
+          valor: entrada.valor as Record<string, unknown> | undefined,
+          metadatos: entrada.metadatos,
+        },
+        req.usuario
+      );
 
       responderExito(res, comando, 201, 'Comando registrado correctamente');
     } catch (error) {
@@ -48,7 +56,11 @@ export const comandoActuadorController = {
     try {
       const { id } = idActuadorParamSchema.parse(req.params);
       const q = listarComandosSchema.parse(req.query ?? {});
-      const comandos = await comandoActuadorService.listarPorActuador(id, q.limite ?? 50);
+      const comandos = await comandoActuadorService.listarPorActuador(
+        id,
+        q.limite ?? 50,
+        req.usuario
+      );
       responderExito(res, comandos, 200);
     } catch (error) {
       next(error);

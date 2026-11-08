@@ -200,7 +200,25 @@ export const comandoActuadorRepository = {
    *
    * Devuelve cuántos comandos se expiraron (0 si ninguno).
    */
-  async expirarPendientes(minutos: number): Promise<number> {
+  /**
+   * Marca como `expirado` los comandos que nadie recogió.
+   *
+   * Devuelve las filas afectadas (no solo el número): sin ellas no se
+   * pueden emitir los eventos, y la web dejaría el botón «encolado» para
+   * siempre aunque el comando ya no vaya a ejecutarse.
+   */
+  async expirarPendientes(minutos: number): Promise<{
+    filas: {
+      id: string;
+      actuador_id: string;
+      comando: string;
+      estado: string;
+      respuesta: unknown;
+      creado_en: Date;
+      ejecutado_en: Date | null;
+    }[];
+    total: number;
+  }> {
     const r = await query(
       `UPDATE comandos_actuador
           SET estado = 'expirado',
@@ -212,10 +230,11 @@ export const comandoActuadorRepository = {
                           ),
               ejecutado_en = NOW()
         WHERE estado = 'pendiente'
-          AND creado_en < NOW() - ($1::int * INTERVAL '1 minute')`,
+          AND creado_en < NOW() - ($1::int * INTERVAL '1 minute')
+      RETURNING id, actuador_id, comando, estado, respuesta, creado_en, ejecutado_en`,
       [minutos]
     );
-    return r.rowCount ?? 0;
+    return { filas: r.rows, total: r.rowCount ?? 0 };
   },
 
   /**

@@ -6,6 +6,7 @@ import type {
   CrearActuadorInput,
 } from './actuador.types.js';
 import { actuadorRepository } from './actuador.repository.js';
+import type { UsuarioAlcance } from '../../utils/alcance.js';
 import { codigoDeActuador } from '../../utils/identificadores.js';
 import { validarDireccionamiento } from './direccionamiento.js';
 
@@ -14,13 +15,16 @@ import { validarDireccionamiento } from './direccionamiento.js';
  */
 export const actuadorService = {
   /** Lista actuadores con dispositivo y área. */
-  async listar(): Promise<ActuadorConRelaciones[]> {
-    return actuadorRepository.listar();
+  async listar(usuario?: UsuarioAlcance | null): Promise<ActuadorConRelaciones[]> {
+    return actuadorRepository.listar(usuario);
   },
 
   /** Obtiene un actuador por id. */
-  async obtenerPorId(id: string): Promise<ActuadorConRelaciones> {
-    const actuador = await actuadorRepository.buscarPorId(id);
+  async obtenerPorId(
+    id: string,
+    usuario?: UsuarioAlcance | null
+  ): Promise<ActuadorConRelaciones> {
+    const actuador = await actuadorRepository.buscarPorId(id, usuario);
     if (!actuador) {
       throw ApiError.notFound('Actuador no encontrado');
     }

@@ -4,6 +4,7 @@ import type {
   ActualizarActuadorInput,
   CrearActuadorInput,
 } from './actuador.types.js';
+import { condicionVisibilidadHeredada, type UsuarioAlcance } from '../../utils/alcance.js';
 
 /** Columnas del actuador + relaciones legibles (dispositivo, área). */
 const SELECT_ACTUADOR = `
@@ -25,18 +26,36 @@ const FROM_ACTUADOR = `
  */
 export const actuadorRepository = {
   /** Lista actuadores con dispositivo y área legibles. */
-  async listar(): Promise<ActuadorConRelaciones[]> {
+  /**
+   * Lista los actuadores visibles para el usuario.
+   *
+   * El actuador hereda la propiedad de su dispositivo: si no filtras, un
+   * usuario ve y opera los equipos de otro. Esa era la fuga.
+   */
+  async listar(usuario?: UsuarioAlcance | null): Promise<ActuadorConRelaciones[]> {
+    const cond = condicionVisibilidadHeredada('d', 1, usuario);
+    const where = cond ? `WHERE ${cond.sql}` : '';
+    const valores = cond ? [cond.valor] : [];
+
     const r = await query<ActuadorConRelaciones>(
-      `SELECT ${SELECT_ACTUADOR} ${FROM_ACTUADOR} ORDER BY a.creado_en DESC`
+      `SELECT ${SELECT_ACTUADOR} ${FROM_ACTUADOR} ${where} ORDER BY a.creado_en DESC`,
+      valores
     );
     return r.rows;
   },
 
   /** Busca un actuador por id (con dispositivo y área). */
-  async buscarPorId(id: string): Promise<ActuadorConRelaciones | null> {
+  async buscarPorId(
+    id: string,
+    usuario?: UsuarioAlcance | null
+  ): Promise<ActuadorConRelaciones | null> {
+    const cond = condicionVisibilidadHeredada('d', 2, usuario);
+    const where = cond ? ` AND ${cond.sql}` : '';
+    const valores = cond ? [id, cond.valor] : [id];
+
     const r = await query<ActuadorConRelaciones>(
-      `SELECT ${SELECT_ACTUADOR} ${FROM_ACTUADOR} WHERE a.id = $1 LIMIT 1`,
-      [id]
+      `SELECT ${SELECT_ACTUADOR} ${FROM_ACTUADOR} WHERE a.id = $1${where} LIMIT 1`,
+      valores
     );
     return r.rows[0] ?? null;
   },
