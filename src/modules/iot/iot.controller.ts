@@ -4,6 +4,7 @@ import { ApiError } from '../../utils/api-error.js';
 import {
   comandoIntegracionSchema,
   estadoDispositivoSchema,
+  estadoActuadorSchema,
   ingestaMedicionesSchema,
 } from './iot.schema.js';
 import {
@@ -182,6 +183,43 @@ export const iotController = {
         typeof identificador === 'string' ? identificador : undefined
       );
       responderExito(res, datos, 200);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /iot/actuadores/:codigo/estado
+   *
+   * El integrador informa del estado real del actuador. Además de
+   * actualizarlo, se reconcilian los comandos recientes que pedían ese
+   * mismo estado y quedaron `fallido` o `enviado`.
+   */
+  async estadoActuador(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const codigo = String(req.params.codigo);
+      const { estado, minutos } = estadoActuadorSchema.parse(req.body);
+
+      const resultado = await comandoActuadorService.reconciliarPorEstado(
+        codigo,
+        estado,
+        minutos ?? 10
+      );
+
+      responderExito(
+        res,
+        {
+          actuador: codigo,
+          estado,
+          reconciliados: resultado.reconciliados,
+          comandos: resultado.comandos,
+        },
+        200
+      );
     } catch (error) {
       next(error);
     }

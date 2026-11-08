@@ -35,6 +35,14 @@ router.post(
   iotController.estadoDispositivo
 );
 
+// Estado real de un actuador: lo reporta Node-RED tras la lectura de vuelta.
+// Reconciliación de comandos que quedaron sin confirmar.
+router.post(
+  '/actuadores/:codigo/estado',
+  verificarPermisosApi('estado:actualizar'),
+  iotController.estadoActuador
+);
+
 /*
  * ────────────────────────────────────────────────────────────────
  * RECOGIDA DE COMANDOS (Node-RED → equipo físico)

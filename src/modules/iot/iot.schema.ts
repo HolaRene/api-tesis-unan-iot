@@ -85,3 +85,24 @@ export const estadoDispositivoSchema = z
 export type IngestaMedicionesBody = z.infer<typeof ingestaMedicionesSchema>;
 export type ComandoIntegracionBody = z.infer<typeof comandoIntegracionSchema>;
 export type EstadoDispositivoBody = z.infer<typeof estadoDispositivoSchema>;
+
+/**
+ * Payload para POST /api/v1/iot/actuadores/:codigo/estado.
+ *
+ * Node-RED (o el propio equipo) informa del estado REAL del actuador tras
+ * una lectura de vuelta. Sirve para reconciliar comandos que quedaron
+ * `fallido` o `enviado` aunque la orden sí se aplicara.
+ */
+export const estadoActuadorSchema = z
+  .object({
+    estado: z
+      .string()
+      .trim()
+      .min(1, 'El estado es obligatorio')
+      .max(50, 'El estado no puede superar 50 caracteres'),
+    /** Opcional: acota la ventana de comandos a reconciliar. */
+    minutos: z.coerce.number().int().positive().max(1440).optional(),
+  })
+  .strict();
+
+export type EstadoActuadorBody = z.infer<typeof estadoActuadorSchema>;

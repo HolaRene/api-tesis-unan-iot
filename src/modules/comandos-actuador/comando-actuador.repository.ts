@@ -291,4 +291,54 @@ export const comandoActuadorRepository = {
       };
     });
   },
+
+  /**
+   * Comandos recientes de un actuador que podrían reconciliarse.
+   *
+   * Solo `fallido` y `enviado`: un `ejecutado` ya está cerrado y un
+   * `pendiente` aún no se ha escrito (confirmarlo sería adelantarse).
+   *
+   * La ventana temporal (`minutos`) evita reconciliar un comando de hace
+   * días con un cambio de estado casual de ahora.
+   */
+  async buscarReconciliables(
+    actuadorId: string,
+    minutos = 10
+  ): Promise<
+    {
+      id: string;
+      actuador_id: string;
+      comando: string;
+      estado: string;
+      respuesta: Record<string, unknown> | null;
+      metadatos: Record<string, unknown> | null;
+    }[]
+  > {
+    const r = await query(
+      `SELECT id, actuador_id, comando, estado, respuesta, metadatos
+         FROM comandos_actuador
+        WHERE actuador_id = $1
+          AND estado IN ('fallido', 'enviado')
+          AND creado_en > NOW() - ($2::int * INTERVAL '1 minute')
+        ORDER BY creado_en DESC`,
+      [actuadorId, minutos]
+    );
+    return r.rows;
+  },
+
+  /** Marca un comando como ejecutado conservando su respuesta. */
+  async reconciliarComoEjecutado(
+    id: string,
+    respuesta: Record<string, unknown>,
+    ejecutadoEn: Date
+  ): Promise<void> {
+    await query(
+      `UPDATE comandos_actuador
+          SET estado = 'ejecutado',
+              respuesta = $2,
+              ejecutado_en = $3
+        WHERE id = $1 AND estado IN ('fallido', 'enviado')`,
+      [id, JSON.stringify(respuesta), ejecutadoEn]
+    );
+  },
 };

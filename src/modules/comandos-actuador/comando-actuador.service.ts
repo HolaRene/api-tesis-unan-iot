@@ -8,6 +8,10 @@ import type {
 import { comandoActuadorRepository } from './comando-actuador.repository.js';
 import type { UsuarioAlcance } from '../../utils/alcance.js';
 import {
+  seleccionarReconciliables,
+  respuestaReconciliada,
+} from './reconciliacion.js';
+import {
   emitirComandoActualizado,
   emitirActuadorActualizado,
 } from '../../realtime/actuadores.eventos.js';
@@ -273,5 +277,103 @@ export const comandoActuadorService = {
   /** Configuración de latencia/timeout por actuador (para Node-RED). */
   async configuracionSimulacion(identificador?: string) {
     return comandoActuadorRepository.configuracionSimulacion(identificador);
+  },
+
+  /**
+   * Reconoce que un actuador está en `estadoReportado` y reconcilia los
+   * comandos recientes que quedaron sin confirmar.
+   *
+   * ── Por qué existe ──
+   * Node-RED puede marcar `fallido` porque el equipo tardó más que el
+   * timeout, aunque la orden SÍ se aplicara. Cuando el estado real llega
+   * (por lectura de vuelta o por reporte del propio equipo), se corrige.
+   *
+   * Es una CONFIRMACIÓN INDIRECTA: no se leyó la salida justo después de
+   * escribir, se deduce del estado que el equipo reporta. Queda marcado con
+   * `confirmado_por: "estado_reportado"` y se conserva el error original.
+   */
+  async reconciliarPorEstadoReportado(
+    actuadorId: string,
+    estadoReportado: string,
+    minutos = 10
+  ): Promise<{ comando_id: string }[]> {
+    const candidatos = await comandoActuadorRepository.buscarReconciliables(
+      actuadorId,
+      minutos
+    );
+
+    const reconciliables = seleccionarReconciliables(candidatos, estadoReportado);
+    const ahora = new Date();
+    const reconciliados: { comando_id: string }[] = [];
+
+    for (const cmd of reconciliables) {
+      const respuesta = respuestaReconciliada(cmd, estadoReportado, ahora);
+      await comandoActuadorRepository.reconciliarComoEjecutado(
+        cmd.id,
+        respuesta,
+        ahora
+      );
+
+      const actualizado = await comandoActuadorRepository.buscarPorId(cmd.id);
+      if (actualizado) {
+        // Después del COMMIT.
+        emitirComandoActualizado(actualizado);
+      }
+      reconciliados.push({ comando_id: cmd.id });
+    }
+
+    return reconciliados;
+  },
+
+  /**
+   * El integrador informa del estado real de un actuador (por código).
+   *
+   * Hace tres cosas, en este orden:
+   *   1. Actualiza `estado_actual` del actuador.
+   *   2. Reconcilia comandos recientes que pedían ese estado.
+   *   3. Emite los eventos correspondientes.
+   *
+   * Se resuelve por CÓDIGO porque Node-RED no conoce los UUID internos.
+   */
+  async reconciliarPorEstado(
+    actuadorCodigo: string,
+    estadoReportado: string,
+    minutos = 10
+  ): Promise<{
+    reconciliados: number;
+    comandos: { comando_id: string }[];
+  }> {
+    const actuador = await actuadorRepository.buscarPorCodigo(actuadorCodigo);
+    if (!actuador) {
+      throw ApiError.notFound(
+        `Actuador '${actuadorCodigo}' no encontrado`
+      );
+    }
+
+    const ahora = new Date();
+
+    // 1. Estado real del equipo.
+    await actuadorRepository.actualizar(actuador.id, {
+      estado_actual: estadoReportado,
+      ultima_orden_en: ahora,
+    });
+
+    // 2. Reconciliación de comandos que quedaron sin confirmar.
+    const comandos = await this.reconciliarPorEstadoReportado(
+      actuador.id,
+      estadoReportado,
+      minutos
+    );
+
+    // 3. Evento del actuador, después de persistir todo.
+    emitirActuadorActualizado({
+      id: actuador.id,
+      codigo: actuador.codigo,
+      nombre: actuador.nombre,
+      estado_actual: estadoReportado,
+      ultima_orden_en: ahora,
+    });
+
+    return { reconciliados: comandos.length, comandos };
   },
 };
