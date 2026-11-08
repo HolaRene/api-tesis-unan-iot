@@ -6,6 +6,10 @@ import type {
   CrearComandoWebInput,
 } from './comando-actuador.types.js';
 import { comandoActuadorRepository } from './comando-actuador.repository.js';
+import {
+  emitirComandoActualizado,
+  emitirActuadorActualizado,
+} from '../../realtime/actuadores.eventos.js';
 import { actuadorRepository } from '../actuadores/actuador.repository.js';
 
 /**
@@ -37,13 +41,22 @@ export const comandoActuadorService = {
    */
   async crearDesdeWeb(entrada: CrearComandoWebInput): Promise<ComandoActuadorConRelaciones> {
     await this.existeActuador(entrada.actuador_id);
-    return comandoActuadorRepository.crear({
+    const comando = await comandoActuadorRepository.crear({
       actuador_id: entrada.actuador_id,
       usuario_id: entrada.usuario_id,
       comando: entrada.comando,
       valor: entrada.valor,
       metadatos: entrada.metadatos,
     });
+
+    /*
+     * Se avisa en cuanto queda encolado: así el botón del dashboard puede
+     * mostrar «enviando…» de inmediato, sin esperar al refresco.
+     * Va después del COMMIT del INSERT.
+     */
+    emitirComandoActualizado(comando);
+
+    return comando;
   },
 
   /**
@@ -61,13 +74,15 @@ export const comandoActuadorService = {
       throw ApiError.badRequest('El actuador está desactivado');
     }
 
-    return comandoActuadorRepository.crear({
+    const comando = await comandoActuadorRepository.crear({
       actuador_id: actuador.id,
       clave_api_id: entrada.clave_api_id,
       comando: entrada.comando,
       valor: entrada.valor,
       metadatos: entrada.metadatos,
     });
+    emitirComandoActualizado(comando);
+    return comando;
   },
 
   /** Consulta los últimos comandos de un actuador. */
@@ -144,15 +159,45 @@ export const comandoActuadorService = {
     });
 
     // Reflejar el estado real en el actuador.
+    let actuadorActualizado = false;
     if (entrada.estado === 'ejecutado' && entrada.estado_actuador) {
       await actuadorRepository.actualizar(comando.actuador_id, {
         estado_actual: entrada.estado_actuador,
+        ultima_orden_en: ahora,
       });
+      actuadorActualizado = true;
     }
 
-    return (await comandoActuadorRepository.buscarPorId(
+    const confirmado = (await comandoActuadorRepository.buscarPorId(
       comandoId
     )) as ComandoActuadorConRelaciones;
+
+    /*
+     * EVENTOS (después del COMMIT).
+     *
+     * `comando:actualizado` en cada estado, no solo al terminar: la web
+     * necesita ver el paso «enviado» para que el usuario sepa que su orden
+     * ya salió del servidor.
+     *
+     * `actuador:actualizado` solo cuando cambió el estado del equipo: es lo
+     * que hace que la tarjeta del dashboard se repinte sola.
+     */
+    emitirComandoActualizado(confirmado);
+
+    if (actuadorActualizado) {
+      const actuador = await actuadorRepository.buscarPorId(comando.actuador_id);
+      if (actuador) {
+        emitirActuadorActualizado({
+          id: actuador.id,
+          codigo: actuador.codigo,
+          nombre: actuador.nombre,
+          estado_actual: actuador.estado_actual ?? null,
+          ultima_orden_en: actuador.ultima_orden_en ?? ahora,
+        });
+      }
+    }
+
+    return confirmado;
   },
 
   /** Valida que el actuador exista. */

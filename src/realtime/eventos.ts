@@ -19,10 +19,13 @@ export type TipoEventoTiempoReal =
   // --- Mediciones y canales (pendiente, segunda entrega) ---
   | 'medicion:nueva'
   | 'canal:actualizado'
-  // --- Alertas (pendiente, segunda entrega) ---
+  // --- Alertas ---
   | 'alerta:creada'
   | 'alerta:actualizada'
-  | 'alerta:resuelta';
+  | 'alerta:resuelta'
+  // --- Actuadores y comandos ---
+  | 'actuador:actualizado'
+  | 'comando:actualizado';
 
 /** Sobre que viaja por el WebSocket: tipo de evento + payload + metadatos. */
 export interface EventoTiempoReal<T = unknown> {
@@ -74,4 +77,47 @@ export interface MensajeCliente {
   tipo: 'ping' | 'suscribir';
   /** Canales/entidades a los que suscribirse (reservado para el futuro). */
   temas?: string[];
+}
+
+/* =====================================================================
+   ACTUADORES Y COMANDOS
+   ===================================================================== */
+
+/**
+ * Payload de `comando:actualizado`.
+ *
+ * Se emite al ENCOLAR un comando y en cada cambio de estado
+ * (`pendiente` → `enviado` → `ejecutado` / `fallido`).
+ *
+ * Sin esto, la web solo se enteraba del resultado cuando el navegador
+ * volvía a pedir la lista: el usuario pulsaba el botón, el texto cambiaba a
+ * «encolado» y el estado real no aparecía hasta el siguiente refresco (o
+ * hasta que el propio usuario hiciera otra acción).
+ */
+export interface PayloadComandoActualizado {
+  comando_id: string;
+  actuador_id: string;
+  actuador_codigo: string;
+  comando: string;
+  /** pendiente | enviado | ejecutado | fallido | expirado */
+  estado: string;
+  /** Motivo del fallo, si lo hubo (`timeout`, etc.). */
+  motivo?: string | null;
+  creado_en: string | null;
+  ejecutado_en: string | null;
+}
+
+/**
+ * Payload de `actuador:actualizado`.
+ *
+ * El estado del equipo cambió (por un comando o por una escritura externa).
+ * La web lo usa para pintar el actuador sin recargar.
+ */
+export interface PayloadActuadorActualizado {
+  actuador_id: string;
+  codigo: string;
+  nombre: string | null;
+  /** Estado REAL del equipo ('on', 'off', 'abierto'…). */
+  estado_actual: string | null;
+  ultima_orden_en: string | null;
 }

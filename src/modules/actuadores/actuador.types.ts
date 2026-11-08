@@ -9,6 +9,8 @@ export interface Actuador {
   codigo: string;
   tipo: string;
   estado_actual: string | null;
+  /** Momento del último cambio de estado confirmado por el dispositivo. */
+  ultima_orden_en?: Date | string | null;
   activo: boolean;
   /** Cómo se acciona: `modbus`, `gpio`, `mqtt` o `http`. */
   protocolo: string;
@@ -40,6 +42,8 @@ export interface CrearActuadorInput {
   codigo?: string;
   tipo: string;
   estado_actual?: string | null;
+  /** Lo fija el servicio al confirmar un comando, no el formulario. */
+  ultima_orden_en?: Date | string | null;
   activo?: boolean;
   /** Cómo se acciona: modbus, gpio, mqtt o http. */
   protocolo?: string;
@@ -54,6 +58,8 @@ export interface ActualizarActuadorInput {
   codigo?: string;
   tipo?: string;
   estado_actual?: string | null;
+  /** Lo fija el servicio al confirmar un comando, no el formulario. */
+  ultima_orden_en?: Date | string | null;
   activo?: boolean;
   protocolo?: string;
   configuracion?: Record<string, unknown> | null;

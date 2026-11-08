@@ -8,7 +8,7 @@ import type {
 /** Columnas del actuador + relaciones legibles (dispositivo, área). */
 const SELECT_ACTUADOR = `
   a.id, a.dispositivo_id, a.nombre, a.codigo, a.tipo,
-  a.estado_actual, a.activo, a.protocolo, a.configuracion, a.creado_en,
+  a.estado_actual, a.ultima_orden_en, a.activo, a.protocolo, a.configuracion, a.creado_en,
   d.nombre AS dispositivo_nombre,
   d.area_id,
   ar.nombre AS area_nombre
@@ -90,6 +90,9 @@ export const actuadorRepository = {
     if (datos.codigo !== undefined) agregar('codigo', datos.codigo);
     if (datos.tipo !== undefined) agregar('tipo', datos.tipo);
     if (datos.estado_actual !== undefined) agregar('estado_actual', datos.estado_actual);
+    if (datos.ultima_orden_en !== undefined) {
+      agregar('ultima_orden_en', datos.ultima_orden_en);
+    }
     if (datos.activo !== undefined) agregar('activo', datos.activo);
     if (datos.protocolo !== undefined) agregar('protocolo', datos.protocolo);
     if (datos.configuracion !== undefined) {
