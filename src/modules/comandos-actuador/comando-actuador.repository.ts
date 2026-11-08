@@ -1,5 +1,6 @@
 import { query } from '../../database/pool.js';
 import type { ComandoActuadorConRelaciones } from './comando-actuador.types.js';
+import { VENTANA_RECONCILIACION_MIN } from './reconciliacion.js';
 
 /** Columnas base del comando. */
 const CAMPOS_BASE = `
@@ -303,7 +304,7 @@ export const comandoActuadorRepository = {
    */
   async buscarReconciliables(
     actuadorId: string,
-    minutos = 10
+    minutos = VENTANA_RECONCILIACION_MIN
   ): Promise<
     {
       id: string;

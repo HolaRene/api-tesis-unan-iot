@@ -8,8 +8,9 @@ import type {
 import { comandoActuadorRepository } from './comando-actuador.repository.js';
 import type { UsuarioAlcance } from '../../utils/alcance.js';
 import {
-  seleccionarReconciliables,
+  seleccionarReconciliable,
   respuestaReconciliada,
+  VENTANA_RECONCILIACION_MIN,
 } from './reconciliacion.js';
 import {
   emitirComandoActualizado,
@@ -295,34 +296,38 @@ export const comandoActuadorService = {
   async reconciliarPorEstadoReportado(
     actuadorId: string,
     estadoReportado: string,
-    minutos = 10
+    minutos = VENTANA_RECONCILIACION_MIN
   ): Promise<{ comando_id: string }[]> {
     const candidatos = await comandoActuadorRepository.buscarReconciliables(
       actuadorId,
       minutos
     );
 
-    const reconciliables = seleccionarReconciliables(candidatos, estadoReportado);
+    /*
+     * SOLO EL MÁS RECIENTE.
+     *
+     * Si hubo tres ON fallidos, el equipo encendido explica como mucho el
+     * último. Marcar los tres daría por ejecutadas dos órdenes que pudieron
+     * no aplicarse nunca.
+     */
+    const cmd = seleccionarReconciliable(candidatos, estadoReportado);
+    if (!cmd) return [];
+
     const ahora = new Date();
-    const reconciliados: { comando_id: string }[] = [];
+    const respuesta = respuestaReconciliada(cmd, estadoReportado, ahora);
+    await comandoActuadorRepository.reconciliarComoEjecutado(
+      cmd.id,
+      respuesta,
+      ahora
+    );
 
-    for (const cmd of reconciliables) {
-      const respuesta = respuestaReconciliada(cmd, estadoReportado, ahora);
-      await comandoActuadorRepository.reconciliarComoEjecutado(
-        cmd.id,
-        respuesta,
-        ahora
-      );
-
-      const actualizado = await comandoActuadorRepository.buscarPorId(cmd.id);
-      if (actualizado) {
-        // Después del COMMIT.
-        emitirComandoActualizado(actualizado);
-      }
-      reconciliados.push({ comando_id: cmd.id });
+    const actualizado = await comandoActuadorRepository.buscarPorId(cmd.id);
+    if (actualizado) {
+      // Después del COMMIT.
+      emitirComandoActualizado(actualizado);
     }
 
-    return reconciliados;
+    return [{ comando_id: cmd.id }];
   },
 
   /**
@@ -338,7 +343,7 @@ export const comandoActuadorService = {
   async reconciliarPorEstado(
     actuadorCodigo: string,
     estadoReportado: string,
-    minutos = 10
+    minutos = VENTANA_RECONCILIACION_MIN
   ): Promise<{
     reconciliados: number;
     comandos: { comando_id: string }[];

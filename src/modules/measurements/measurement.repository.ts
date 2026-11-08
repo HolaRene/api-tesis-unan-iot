@@ -263,6 +263,22 @@ export const measurementRepository = {
     // magnitudes continuas (temperatura, humedad…).
     cond.push('m.valor_numerico IS NOT NULL');
 
+    /*
+     * EXCLUIR LAS LECTURAS MALAS.
+     *
+     * Un sensor averiado envía -32768 (o < 3,6 mA) y se guarda con
+     * `calidad = 'bad'`. Esas lecturas no son medidas: son ausencia de
+     * medida.
+     *
+     * Si entraran en las series, un solo -32768 hundiría el promedio y el
+     * mínimo del periodo, y la gráfica mostraría una caída que nunca
+     * ocurrió. El pico aparecería justo cuando el sensor falló.
+     *
+     * Se conservan las `uncertain` (sobre-rango): son medidas reales, solo
+     * que fuera de escala.
+     */
+    cond.push("m.calidad IS DISTINCT FROM 'bad'");
+
     const sensorEfectivo = `COALESCE(m.sensor_id, c.sensor_id)`;
 
     if (filtro.sensor_id !== undefined) {

@@ -36,6 +36,22 @@
  * lectura de vuelta del propio comando.
  */
 
+/**
+ * Ventana por defecto para reconciliar, en minutos.
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * POR QUÉ 2 Y NO 10
+ * ──────────────────────────────────────────────────────────────────────
+ * Con una ventana larga, un `ON` fallido de hace 9 minutos se daría por
+ * bueno porque alguien encendió el equipo a mano entretanto. Eso no es una
+ * confirmación: es una coincidencia.
+ *
+ * Dos minutos cubren de sobra una confirmación tardía (el timeout típico de
+ * Modbus es de 5 s y la lectura extra, de 10 s), sin alcanzar a cambios
+ * ajenos al comando.
+ */
+export const VENTANA_RECONCILIACION_MIN = 2;
+
 /** Comando pendiente de reconciliar, tal como lo devuelve el repositorio. */
 export interface ComandoReconciliable {
   id: string;
@@ -100,18 +116,40 @@ export function respuestaReconciliada(
 }
 
 /**
- * Filtra los comandos que deben reconciliarse con un estado reportado.
+ * Elige el comando que debe reconciliarse con un estado reportado.
  *
- * Solo `fallido` y `enviado`: un comando ya `ejecutado` no cambia, y uno
- * `pendiente` todavía no se ha escrito (reconciliarlo sería adelantarse).
+ * ──────────────────────────────────────────────────────────────────────
+ * SOLO UNO: EL MÁS RECIENTE
+ * ──────────────────────────────────────────────────────────────────────
+ * Si hubo tres `ON` fallidos, el equipo encendido explica como mucho el
+ * ÚLTIMO: los dos anteriores ya pudieron quedar sin efecto. Marcarlos todos
+ * como ejecutados sería inventar un historial que no ocurrió.
+ *
+ * Devuelve `null` si ninguno encaja.
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * QUÉ NO RECONCILIA
+ * ──────────────────────────────────────────────────────────────────────
+ *   - `ejecutado`: ya está cerrado.
+ *   - `pendiente`: aún no se ha escrito; sería adelantarse al envío.
+ *   - Estado distinto del pedido.
+ *
+ * La ventana temporal (por defecto 2 minutos) la aplica la consulta, no
+ * esta función: así se descarta en SQL y no se traen filas inútiles.
  */
-export function seleccionarReconciliables(
+export function seleccionarReconciliable(
   comandos: ComandoReconciliable[],
   estadoReportado: string
-): ComandoReconciliable[] {
-  return comandos.filter(
-    (c) =>
-      (c.estado === 'fallido' || c.estado === 'enviado') &&
-      comandoPediaEstado(c.comando, estadoReportado)
+): ComandoReconciliable | null {
+  /*
+   * `comandos` llega ordenado de más reciente a más antiguo (lo hace la
+   * consulta con ORDER BY creado_en DESC). Se toma el primero que encaje.
+   */
+  return (
+    comandos.find(
+      (c) =>
+        (c.estado === 'fallido' || c.estado === 'enviado') &&
+        comandoPediaEstado(c.comando, estadoReportado)
+    ) ?? null
   );
 }

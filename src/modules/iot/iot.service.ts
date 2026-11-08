@@ -77,6 +77,11 @@ export const iotService = {
 
     let procesadas = 0;
     let fallidas = 0;
+    /*
+     * Motivo de cada rechazo. Sin esto, un lote de 12 medidas con una mala
+     * devolvía «fallidas: 1» y nada más: ni qué canal ni por qué.
+     */
+    const rechazos: { canal: string | null; motivo: string }[] = [];
     const ids: unknown[] = [];
     // Mediciones guardadas (ya con COMMIT): se usan para emitir realtime.
     const guardadas: MedicionReciente[] = [];
@@ -149,6 +154,22 @@ export const iotService = {
         });
       } catch (error) {
         fallidas += 1;
+        rechazos.push({
+          canal:
+            (item as { canal?: string; sensor?: string }).canal ??
+            (item as { sensor?: string }).sensor ??
+            null,
+          motivo: error instanceof Error ? error.message : String(error),
+        });
+        /*
+         * Se registra también en el log: el resumen por HTTP puede no
+         * mirarse nunca, pero un rechazo repetido debe aparecer en consola.
+         */
+        console.warn(
+          `[iot] Medición rechazada en ${entrada.dispositivo}: ` +
+            `${(item as { canal?: string }).canal ?? '?'} — ` +
+            `${error instanceof Error ? error.message : error}`
+        );
       }
     }
 
@@ -204,6 +225,7 @@ export const iotService = {
       proceso: 'mediciones',
       procesadas,
       fallidas,
+      ...(rechazos.length > 0 ? { rechazos } : {}),
       mediciones: ids,
     };
   },

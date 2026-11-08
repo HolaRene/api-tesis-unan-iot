@@ -204,10 +204,16 @@ export const iotController = {
       const codigo = String(req.params.codigo);
       const { estado, minutos } = estadoActuadorSchema.parse(req.body);
 
+      /*
+       * Sin `minutos` en el cuerpo, se usa la ventana por defecto del
+       * servicio (2 min). Antes el controlador forzaba 10, y eso anulaba la
+       * constante: un ON fallido de hace 9 minutos se daba por bueno porque
+       * alguien encendió el equipo a mano.
+       */
       const resultado = await comandoActuadorService.reconciliarPorEstado(
         codigo,
         estado,
-        minutos ?? 10
+        minutos
       );
 
       responderExito(

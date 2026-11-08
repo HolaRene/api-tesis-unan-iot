@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {
   comandoPediaEstado,
   respuestaReconciliada,
-  seleccionarReconciliables,
+  seleccionarReconciliable,
+  VENTANA_RECONCILIACION_MIN,
   type ComandoReconciliable,
 } from './reconciliacion.js';
 
@@ -60,33 +61,68 @@ describe('comandoPediaEstado', () => {
   });
 });
 
-describe('seleccionarReconciliables', () => {
-  it('toma los fallidos y los enviados', () => {
-    const r = seleccionarReconciliables(
-      [comando({ id: 'a', estado: 'fallido' }), comando({ id: 'b', estado: 'enviado' })],
+describe('seleccionarReconciliable', () => {
+  it('toma el más reciente que encaje', () => {
+    const r = seleccionarReconciliable(
+      [comando({ id: 'reciente', estado: 'fallido' }), comando({ id: 'viejo', estado: 'fallido' })],
       'on'
     );
-    assert.deepEqual(r.map((c) => c.id), ['a', 'b']);
+    assert.equal(r?.id, 'reciente');
+  });
+
+  it('NO reconcilia los tres ON fallidos: solo uno', () => {
+    /*
+     * Si hubo tres ON fallidos, el equipo encendido explica como mucho el
+     * último. Marcar los tres inventaría un historial que no ocurrió.
+     */
+    const r = seleccionarReconciliable(
+      [
+        comando({ id: 'a', estado: 'fallido' }),
+        comando({ id: 'b', estado: 'fallido' }),
+        comando({ id: 'c', estado: 'fallido' }),
+      ],
+      'on'
+    );
+    assert.equal(r?.id, 'a');
+    // La función devuelve UNO, no una lista.
+    assert.equal(Array.isArray(r), false);
+  });
+
+  it('toma un enviado si no hay nada más reciente', () => {
+    const r = seleccionarReconciliable([comando({ estado: 'enviado' })], 'on');
+    assert.notEqual(r, null);
   });
 
   it('NO toca un comando ya ejecutado', () => {
-    const r = seleccionarReconciliables(
-      [comando({ estado: 'ejecutado' })],
-      'on'
-    );
-    assert.equal(r.length, 0);
+    assert.equal(seleccionarReconciliable([comando({ estado: 'ejecutado' })], 'on'), null);
   });
 
   it('NO reconcilia un comando pendiente', () => {
     // Un pendiente aún no se ha escrito: darlo por ejecutado sería
     // adelantarse al propio envío.
-    const r = seleccionarReconciliables([comando({ estado: 'pendiente' })], 'on');
-    assert.equal(r.length, 0);
+    assert.equal(seleccionarReconciliable([comando({ estado: 'pendiente' })], 'on'), null);
   });
 
-  it('NO reconcilia si el estado no coincide', () => {
-    const r = seleccionarReconciliables([comando({ comando: 'ON' })], 'off');
-    assert.equal(r.length, 0);
+  it('salta al siguiente si el más reciente no coincide', () => {
+    const r = seleccionarReconciliable(
+      [comando({ id: 'off', comando: 'OFF' }), comando({ id: 'on', comando: 'ON' })],
+      'on'
+    );
+    assert.equal(r?.id, 'on');
+  });
+
+  it('NO reconcilia si no hay ninguno que coincida', () => {
+    assert.equal(seleccionarReconciliable([comando({ comando: 'ON' })], 'off'), null);
+  });
+});
+
+describe('ventana de reconciliación', () => {
+  it('es de 2 minutos, no de 10', () => {
+    /*
+     * Con 10 minutos, un ON fallido de hace 9 se daría por bueno porque
+     * alguien encendió el equipo a mano: eso no es confirmar, es coincidir.
+     */
+    assert.equal(VENTANA_RECONCILIACION_MIN, 2);
   });
 });
 

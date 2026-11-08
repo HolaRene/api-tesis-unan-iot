@@ -30,6 +30,14 @@ export interface ResultadoIngesta {
   proceso: string;
   procesadas: number;
   fallidas: number;
+  /**
+   * Motivo de cada medición rechazada.
+   *
+   * Antes solo se contaba (`fallidas += 1`) y el motivo se perdía. Cuando
+   * Node-RED enviaba 12 medidas y una fallaba, no había forma de saber
+   * cuál ni por qué: había que reproducirlo a ciegas.
+   */
+  rechazos?: { canal: string | null; motivo: string }[];
   mediciones: unknown[];
 }
 
